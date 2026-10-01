@@ -1257,11 +1257,11 @@ function drawWorld() {
 // ---------------------------------------------------------------------------
 // Emblema de mr_donut (el mismo de la intro de mr_donut Battle Chess)
 const LOGO = new Image();
-LOGO.src = 'img/mr_donut.png';
+LOGO.src = 'img/mr_donut.png?v=' + (window.ASSET_V || '1');
 const logoReady = () => LOGO.complete && LOGO.naturalWidth > 0;
 // Logo del juego: mr_donut RAMPAGE
 const GAME_LOGO = new Image();
-GAME_LOGO.src = 'img/logo.webp';
+GAME_LOGO.src = 'img/logo.webp?v=' + (window.ASSET_V || '1');
 const gameLogoReady = () => GAME_LOGO.complete && GAME_LOGO.naturalWidth > 0;
 
 const shineCanvas = document.createElement('canvas');

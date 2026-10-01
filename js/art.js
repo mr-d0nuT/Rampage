@@ -15,7 +15,7 @@ const PLAYER_COLORS = ['#ffcc00', '#29d4ff'];
 MONSTERS.forEach(m => {
   const img = new Image();
   img.onload = () => { m._defaultFace = null; }; // se regenera la cara por defecto con el retrato
-  img.src = m.portrait;
+  img.src = m.portrait + '?v=' + (window.ASSET_V || '1');
   m._portraitImg = img;
 });
 const FACE_SIZE = 160;

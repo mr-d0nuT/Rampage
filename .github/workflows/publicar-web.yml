@@ -1,4 +1,6 @@
-# Publica el juego en GitHub Pages: copia cada cambio de main a la rama gh-pages.
+# Publica el juego en GitHub Pages: copia cada cambio de main a la rama gh-pages,
+# poniendo el commit como versión de los archivos (?v=...) para que el navegador
+# no se quede con la versión anterior en caché.
 name: Publicar web
 on:
   push:
@@ -13,5 +15,11 @@ jobs:
       - uses: actions/checkout@v4
         with:
           fetch-depth: 0
-      - name: Actualizar gh-pages
-        run: git push --force origin HEAD:gh-pages
+      - name: Versionar archivos y actualizar gh-pages
+        run: |
+          V="${GITHUB_SHA::8}"
+          sed -i -E "s/\?v=[0-9a-zA-Z]+\"/?v=${V}\"/g; s/window.ASSET_V = \"[^\"]*\"/window.ASSET_V = \"${V}\"/" index.html
+          git config user.name "github-actions"
+          git config user.email "github-actions@users.noreply.github.com"
+          git commit -am "Publicar ${V}" || true
+          git push --force origin HEAD:gh-pages
