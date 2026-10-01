@@ -1085,29 +1085,36 @@ function drawWorld() {
 const LOGO = new Image();
 LOGO.src = 'img/mr_donut.png';
 const logoReady = () => LOGO.complete && LOGO.naturalWidth > 0;
+// Logo del juego: mr_donut RAMPAGE
+const GAME_LOGO = new Image();
+GAME_LOGO.src = 'img/logo.webp';
+const gameLogoReady = () => GAME_LOGO.complete && GAME_LOGO.naturalWidth > 0;
 
 const shineCanvas = document.createElement('canvas');
 function drawIntro() {
   const t = G.sceneT;
-  ctx.fillStyle = '#05030a'; ctx.fillRect(0, 0, W, H);
+  ctx.save();
+  if (t > 0.75 && t < 1.05) ctx.translate(rand(-6, 6), rand(-6, 6)); // ¡PUM!
+  ctx.fillStyle = '#05030a'; ctx.fillRect(-10, -10, W + 20, H + 20);
   const glow = ctx.createRadialGradient(W / 2, H / 2 - 20, 10, W / 2, H / 2 - 20, 380);
   glow.addColorStop(0, `rgba(255,170,60,${0.35 * Math.min(1, t)})`); glow.addColorStop(1, 'rgba(0,0,0,0)');
   ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H);
-  if (logoReady()) {
+  const IMG = gameLogoReady() ? GAME_LOGO : LOGO;
+  if (IMG.complete && IMG.naturalWidth) {
     // entra con rebote, luego respira
     const e = Math.min(1, t / 0.9);
     const k = e < 1 ? 0.2 + 0.8 * (1 - Math.pow(1 - e, 3)) * (1 + Math.sin(e * Math.PI) * 0.18) : 1 + Math.sin(t * 2.5) * 0.015;
-    const h = 300 * k, w = h * LOGO.naturalWidth / LOGO.naturalHeight;
+    const h = 420 * k, w = h * IMG.naturalWidth / IMG.naturalHeight;
     ctx.save();
     ctx.globalAlpha = Math.min(1, t * 2.5) * Math.min(1, Math.max(0, (3.6 - t) * 2));
-    ctx.drawImage(LOGO, W / 2 - w / 2, H / 2 - 30 - h / 2, w, h);
+    ctx.drawImage(IMG, W / 2 - w / 2, H / 2 - 30 - h / 2, w, h);
     // destello que cruza el emblema (solo sobre el dibujo, no sobre el fondo)
     if (t > 1 && t < 1.8) {
       const sc = shineCanvas;
       sc.width = Math.ceil(w); sc.height = Math.ceil(h);
       const sx = (t - 1) / 0.8 * (sc.width + 240) - 120;
       const g = sc.getContext('2d');
-      g.drawImage(LOGO, 0, 0, sc.width, sc.height);
+      g.drawImage(IMG, 0, 0, sc.width, sc.height);
       g.globalCompositeOperation = 'source-in';
       const sh = g.createLinearGradient(sx - 60, 0, sx + 60, 0);
       sh.addColorStop(0, 'rgba(255,255,255,0)'); sh.addColorStop(0.5, 'rgba(255,240,200,.6)'); sh.addColorStop(1, 'rgba(255,255,255,0)');
@@ -1117,10 +1124,11 @@ function drawIntro() {
       ctx.globalCompositeOperation = 'source-over';
     }
     ctx.globalAlpha *= Math.min(1, Math.max(0, (t - 1.1) * 2));
-    text('p r e s e n t a', W / 2, H / 2 + 165, 30, '#ffd426', 'center', 6);
+    text('¡Tu cara, tu monstruo!', W / 2, H / 2 + 222, 28, '#ffd426', 'center', 6);
     ctx.restore();
   }
-  if (t > 1.5) text('Pulsa una tecla o toca la pantalla', W / 2, H - 22, 14, 'rgba(255,255,255,.5)', 'center', 3);
+  ctx.restore();
+  if (t > 1.5) text('Pulsa una tecla o toca la pantalla', W / 2, H - 10, 13, 'rgba(255,255,255,.5)', 'center', 3);
 }
 
 let titleCity = false;
@@ -1132,13 +1140,14 @@ function drawTitle() {
   ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(0, 0, W, H);
 
   const wob = Math.sin(G.time * 3) * 3;
-  if (logoReady()) {
-    const h = 70, w = h * LOGO.naturalWidth / LOGO.naturalHeight;
-    ctx.drawImage(LOGO, W / 2 - w / 2, 4, w, h);
+  if (gameLogoReady()) {
+    const h = 188, w = h * GAME_LOGO.naturalWidth / GAME_LOGO.naturalHeight;
+    ctx.drawImage(GAME_LOGO, W / 2 - w / 2, 2 + wob, w, h);
+  } else {
+    text('FACE', W / 2, 114 + wob, 44, '#fff', 'center', 9);
+    text('RAMPAGE', W / 2, 180 + wob, 80, '#ff3b2f', 'center', 12);
   }
-  text('FACE', W / 2, 114 + wob, 44, '#fff', 'center', 9);
-  text('RAMPAGE', W / 2, 180 + wob, 80, '#ff3b2f', 'center', 12);
-  text('¡Tu cara, tu monstruo!', W / 2, 210, 20, '#ffcc00', 'center', 5);
+  text('¡Tu cara, tu monstruo!', W / 2, 213, 19, '#ffcc00', 'center', 5);
 
   // monstruos de muestra
   const faces = G.setup.map(s => s.face || MONSTERS[s.monster]._defaultFace || (MONSTERS[s.monster]._defaultFace = defaultFace(MONSTERS[s.monster])));
@@ -1217,6 +1226,7 @@ function update(dt) {
 
   switch (G.scene) {
     case 'intro': {
+      if (G.sceneT < 0.8 && G.sceneT + dt >= 0.8) Sound.play('roar');
       G.sceneT += dt;
       Sound.playMusic('title');
       const skip = Input.anyKey() || Input.anyPadPressedEdge || TouchPad.consumeTap() || G.clicked;

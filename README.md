@@ -129,7 +129,8 @@ js/landmarks.js   edificios emblemáticos de cada ciudad
 js/setup.js       cámara, foto y elección de monstruo
 js/touch.js       controles táctiles (joystick y botones)
 js/game.js        lógica del juego (edificios, enemigos, niveles, HUD)
-img/mr_donut.png  emblema de mr_donut (intro y título)
+img/logo.webp     logo mr_donut RAMPAGE (intro, menú e icono)
+img/mr_donut.png  emblema de mr_donut (respaldo)
 icons/            iconos de la app
 ```
 
