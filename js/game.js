@@ -39,6 +39,7 @@ const G = {
 // ---------------------------------------------------------------------------
 function makeCity(level) {
   G.buildings = []; G.rubble = [];
+  G.cityVersion = (G.cityVersion || 0) + 1;
   const city = CITY_DATA[(level - 1) % CITY_DATA.length];
   // los 4 edificios emblemáticos de la ciudad, en orden aleatorio
   const ids = city.lm.slice().sort(() => Math.random() - 0.5);
@@ -136,12 +137,14 @@ function damageCell(hit, p) {
     return true;
   }
   if (cell.hp <= 0) return false;
-  cell.hp--;
+  cell.hp -= p && p.rageT > 0 ? 2 : 1; // con FURIA, de un golpe
+  if (cell.hp < 0) cell.hp = 0;
   if (cell.hp === 0) {
     Sound.play('glass'); Sound.play('crack');
     debris(pos.x, pos.y, 22, ['#9fd8ff', '#ffffff', b.color, b.color, b.trim, shade(b.color, 0.7)]);
     dustBurst(pos.x, pos.y, 26, p ? p.f : 0);
     addScore(p, 50, pos.x, pos.y);
+    hitStop(0.035);
     registerBreak(b, r);
   } else {
     Sound.play('punch');
@@ -172,6 +175,7 @@ function collapse(b) {
   b.collapsing = true;
   Sound.play('collapse');
   buzz([60, 40, 90]);
+  hitStop(0.12); G.flash = 0.35;
   G.shake = Math.max(G.shake, 10);
   if (b.lastHit) addScore(b.lastHit, 1000, b.x + b.w / 2, roofY(b) - 20, '¡' + b.name.toUpperCase() + ' AL SUELO! +1000');
   for (const p of G.players) {
@@ -181,22 +185,60 @@ function collapse(b) {
   }
 }
 
+// Agarrar a alguien con el puño y llevárselo a la boca (como en el arcade)
+const GRAB_TIME = 0.5;
+function startGrab(p, kind, x, y, hp, points) {
+  p.grab = { kind, x, y, t: 0, hp, points, done: false };
+  p.punchCD = Math.max(p.punchCD, 0.35);
+  Sound.play('select');
+}
+function updateGrab(p, dt) {
+  const g = p.grab;
+  if (!g) return;
+  g.t += dt;
+  if (!g.done && g.t >= GRAB_TIME * 0.8) {
+    g.done = true;
+    heal(p, g.hp); p.eatT = 0.45; Sound.play('eat'); buzz(20);
+    addScore(p, g.points, p.x, p.y - 150, (g.kind === 'soldier' ? '¡CRUNCH! +' : '¡ÑAM! +') + g.points);
+  }
+  if (g.t >= GRAB_TIME) p.grab = null;
+}
+function drawGrab(p) {
+  const g = p.grab;
+  if (!g || g.done) return;
+  const t = Math.min(1, g.t / (GRAB_TIME * 0.8)), e = t * t * (3 - 2 * t);
+  const mx = p.x + p.f * 4, my = p.y - 100; // boca
+  const x = g.x + (mx - g.x) * e, y = g.y + (my - g.y) * e - Math.sin(t * Math.PI) * 20;
+  const sc = 1.4 - t * 0.5, kick = Math.sin(G.time * 40) * 4;
+  ctx.save(); ctx.translate(x, y); ctx.scale(sc, sc);
+  limb(ctx, -2, 6, -5 + kick, 14, 2.5, g.kind === 'soldier' ? '#2f4220' : '#3a3a8a');
+  limb(ctx, 2, 6, 5 - kick, 14, 2.5, g.kind === 'soldier' ? '#2f4220' : '#3a3a8a');
+  ctx.fillStyle = g.kind === 'soldier' ? '#4a6a2f' : '#d33'; ctx.fillRect(-4, -3, 8, 10);
+  limb(ctx, -4, -1, -9, -7 - kick, 2, '#f1c9a5'); limb(ctx, 4, -1, 9, -7 + kick, 2, '#f1c9a5');
+  circle(ctx, 0, -7, 4, '#f1c9a5');
+  if (g.kind === 'soldier') { ctx.fillStyle = '#3d5a2a'; ctx.beginPath(); ctx.arc(0, -8, 4.5, Math.PI, 0); ctx.fill(); }
+  ctx.restore();
+  if (t < 0.6) text('¡AAAH!', x + 12, y - 14, 11, '#fff', 'left', 3);
+}
+
 function handleContent(cell, p, pos) {
   const t = cell.content;
   cell.content = null;
   switch (t) {
     case 'person':
-      heal(p, 8); addScore(p, 100, pos.x, pos.y, '¡ÑAM! +100'); Sound.play('eat'); p.eatT = 0.45; break;
+      startGrab(p, 'person', pos.x, pos.y, 8, 100); break;
     case 'food':
       heal(p, 15); addScore(p, 50, pos.x, pos.y, '¡RICO! +15♥'); Sound.play('eat'); p.eatT = 0.45; break;
     case 'money':
       addScore(p, 500, pos.x, pos.y, '$ 500'); Sound.play('money'); break;
     case 'sniper':
-      heal(p, 4); addScore(p, 250, pos.x, pos.y, '¡CRUNCH! +250'); Sound.play('eat'); p.eatT = 0.45; break;
+      startGrab(p, 'soldier', pos.x, pos.y, 4, 250); break;
     case 'bomb':
       explosion(pos.x, pos.y, 1); hurt(p, 15); floater(pos.x, pos.y, '¡BOOM!', '#ff5030'); break;
     case 'tv':
       hurt(p, 6); floater(pos.x, pos.y, '¡BZZZT!', '#9ff'); spark(pos.x, pos.y); Sound.play('hurt'); break;
+    case 'rage':
+      p.rageT = 8; heal(p, 10); addScore(p, 300, pos.x, pos.y, '¡FURIA!'); Sound.play('roar'); G.flash = 0.2; buzz([40, 30, 40]); break;
   }
 }
 
@@ -207,10 +249,18 @@ function updateBuildings(dt) {
     b.shakeT -= dt;
     if (b.collapsing) {
       b.sink += 70 * dt;
-      if (Math.random() < 0.7) {
+      // nube de polvo en la base y cascotes que saltan mientras se hunde
+      if (Math.random() < 0.9) {
         G.particles.push({ x: rand(b.x - 10, b.x + b.w + 10), y: GROUND - rand(0, 20), vx: rand(-40, 40), vy: rand(-60, -20),
           life: rand(0.8, 1.6), max: 1.6, size: rand(10, 24), color: '#b7a891', kind: 'smoke' });
       }
+      for (let k = 0; k < 2; k++) {
+        const side = Math.random() < 0.5 ? -1 : 1;
+        G.particles.push({ x: side < 0 ? b.x - rand(0, 14) : b.x + b.w + rand(0, 14), y: GROUND - rand(0, 14), vx: side * rand(60, 200), vy: rand(-60, -10),
+          life: rand(0.5, 1.0), max: 1.0, size: rand(8, 16), color: choice(['#f2efe8', '#dcd6cc', '#bdb5a8']), kind: 'dust' });
+      }
+      if (Math.random() < 0.6) debris(rand(b.x, b.x + b.w), Math.min(GROUND - 4, roofY(b) + rand(0, 20)), 2, [b.color, b.trim, shade(b.color, 0.7)]);
+      if (Math.random() < 0.4) debris(rand(b.x, b.x + b.w), GROUND - 6, 1, [b.color, shade(b.color, 0.7)]);
       G.shake = Math.max(G.shake, 4);
       if (b.sink >= b.h) {
         b.gone = true;
@@ -250,8 +300,8 @@ function spawnWindowContent() {
   if (cell.hp <= 0 && Math.random() < 0.6) return;
   if (cell.content) return;
   const roll = Math.random();
-  cell.content = roll < 0.42 ? 'person' : roll < 0.55 ? 'food' : roll < 0.66 ? 'money'
-    : roll < 0.84 ? 'sniper' : roll < 0.93 ? 'bomb' : 'tv';
+  cell.content = roll < 0.40 ? 'person' : roll < 0.53 ? 'food' : roll < 0.63 ? 'money'
+    : roll < 0.80 ? 'sniper' : roll < 0.88 ? 'bomb' : roll < 0.94 ? 'tv' : 'rage';
   cell.contentT = rand(5, 9);
   cell.fireT = rand(1, 2);
 }
@@ -338,6 +388,7 @@ function updatePlayer(p, dt) {
   if (p.out) return;
   p.punchT -= dt; p.punchCD -= dt; p.hurtT -= dt; p.invT -= dt; p.eatT -= dt;
   if ((p.comboT -= dt) <= 0) p.combo = 0;
+  updateGrab(p, dt);
   if (p.shownScore < p.score) p.shownScore = Math.min(p.score, p.shownScore + Math.max(5, (p.score - p.shownScore) * 8 * dt));
 
   if (p.state === 'dead') return updateDead(p, dt);
@@ -345,11 +396,18 @@ function updatePlayer(p, dt) {
   const i = p.i;
   const L = Input.held(i, 'left'), R = Input.held(i, 'right');
   const U = Input.held(i, 'up'), D = Input.held(i, 'down');
-  const punchP = Input.pressed(i, 'punch'), jumpP = Input.pressed(i, 'jump');
+  // buffer: un golpe o salto pulsado un poco antes de poder hacerse no se pierde
+  if (Input.pressed(i, 'punch')) p.punchBuf = 0.16;
+  if (Input.pressed(i, 'jump')) p.jumpBuf = 0.13;
+  p.punchBuf = (p.punchBuf || 0) - dt; p.jumpBuf = (p.jumpBuf || 0) - dt;
+  p.coyote = p.state === 'ground' ? 0.1 : (p.coyote || 0) - dt;
+  p.rageT = (p.rageT || 0) - dt;
+  const punchP = p.punchBuf > 0, jumpP = p.jumpBuf > 0;
   const mv = (R ? 1 : 0) - (L ? 1 : 0);
+  const speed = WALK * (p.rageT > 0 ? 1.3 : 1);
 
   if (p.state === 'ground') {
-    p.vx = mv * WALK * (p.punchT > 0 ? 0.25 : 1);
+    p.vx = mv * speed * (p.punchT > 0 ? 0.25 : 1);
     if (mv) { p.f = mv; p.anim += dt * 11; } else p.anim = 0;
     p.x = clamp(p.x + p.vx * dt, 24, W - 24);
     if (p.building) { // sobre una azotea
@@ -372,10 +430,12 @@ function updatePlayer(p, dt) {
       }
     }
     if (jumpP && p.state !== 'climb') {
-      p.state = 'air'; p.vy = -JUMP; p.building = null; Sound.play('swing');
+      p.state = 'air'; p.vy = -JUMP; p.building = null; p.jumpBuf = 0; p.coyote = 0; Sound.play('swing');
     }
   } else if (p.state === 'air') {
-    const target = mv * WALK;
+    // coyote time: aún se puede saltar justo después de salir de una azotea
+    if (jumpP && p.coyote > 0 && p.vy >= 0) { p.vy = -JUMP; p.jumpBuf = 0; p.coyote = 0; Sound.play('swing'); }
+    const target = mv * speed;
     p.vx += (target - p.vx) * Math.min(1, dt * 6);
     if (mv) p.f = mv;
     p.vy += GRAV * dt;
@@ -396,10 +456,10 @@ function updatePlayer(p, dt) {
     if (p.state === 'air' && p.y >= GROUND) {
       p.y = GROUND; p.state = 'ground'; p.building = null; p.vy = 0; land(p);
     }
-    // agarrarse al lateral de un edificio en pleno salto
-    if (p.state === 'air' && U && p.vy > -320) {
+    // agarrarse al lateral de un edificio en pleno salto (con arriba, o yendo hacia él)
+    if (p.state === 'air' && p.vy > -320) {
       const e = buildingEdgeNear(p.x);
-      if (e && p.y > roofY(e.b) + 44 && p.y < GROUND) startClimb(p, e.b, e.f, p.y);
+      if (e && (U || mv === e.f) && p.y > roofY(e.b) + 44 && p.y < GROUND) startClimb(p, e.b, e.f, p.y);
     }
   } else if (p.state === 'climb') {
     const b = p.building;
@@ -427,7 +487,7 @@ function updatePlayer(p, dt) {
       }
       if (p.state === 'climb') {
         if (jumpP) {
-          p.state = 'air'; p.vy = -JUMP * 0.7; p.vx = -p.side * WALK; p.f = -p.side; p.building = null; Sound.play('swing');
+          p.state = 'air'; p.vy = -JUMP * 0.7; p.vx = -p.side * WALK; p.f = -p.side; p.building = null; p.jumpBuf = 0; Sound.play('swing');
         } else if (mv === -p.side && Input.pressed(i, mv > 0 ? 'right' : 'left')) {
           p.state = 'air'; p.vy = 0; p.vx = -p.side * 90; p.f = -p.side; p.building = null;
         }
@@ -435,7 +495,7 @@ function updatePlayer(p, dt) {
     }
   }
 
-  if (punchP && p.punchCD <= 0) doPunch(p, U, D);
+  if (punchP && p.punchCD <= 0) { p.punchBuf = 0; doPunch(p, U, D); }
 }
 
 function startClimb(p, b, f, y) {
@@ -455,7 +515,7 @@ function land(p) {
 // Golpes: lateral, arriba (diagonal arriba si trepas) y abajo (diagonal abajo si trepas,
 // golpe bajo en la calle, o hacia el suelo de la azotea).
 function doPunch(p, U, D) {
-  p.punchT = 0.2; p.punchCD = 0.28;
+  p.punchT = 0.2; p.punchCD = p.rageT > 0 ? 0.17 : 0.26;
   const climbing = p.state === 'climb';
   let dir = 'side';
   if (U) dir = 'up';
@@ -575,16 +635,14 @@ function enemyBox(e) {
 function hitEnemy(e, p) {
   if (e.type === 'soldier') {
     e.dead = true;
-    heal(p, 5); p.eatT = 0.45;
-    addScore(p, 150, e.x, e.y - 30, '¡ÑAM! +150');
-    Sound.play('eat');
+    startGrab(p, 'soldier', e.x, e.y - 14, 5, 150);
   } else if (e.type === 'heli') {
     if (e.falling) return;
-    e.hp--; e.hitT = 0.15;
+    e.hp -= p.rageT > 0 ? 2 : 1; e.hitT = 0.15; hitStop(0.04);
     Sound.play('punch'); spark(e.x, e.y);
     if (e.hp <= 0) { e.falling = true; e.vy = -60; addScore(p, 500, e.x, e.y - 20, '+500'); }
   } else if (e.type === 'tank') {
-    e.hp--; e.hitT = 0.15;
+    e.hp -= p.rageT > 0 ? 2 : 1; e.hitT = 0.15; hitStop(0.04);
     Sound.play('punch'); spark(e.x, e.y - 15);
     if (e.hp <= 0) { e.dead = true; explosion(e.x, e.y - 15, 1.2); addScore(p, 400, e.x, e.y - 40, '+400'); }
   }
@@ -766,6 +824,7 @@ function startLevel() {
   makeCity(G.level);
   G.enemies = []; G.bullets = []; G.particles = []; G.floaters = [];
   G.spawn = { soldier: 2.5, heli: 7, tank: 10, window: 1 };
+  G.levelTime = 0;
   G.scene = 'play'; G.sceneT = 0; G.paused = false;
   G.city = CITY_DATA[(G.level - 1) % CITY_DATA.length].name;
   Sound.playMusic(G.level);
@@ -781,8 +840,14 @@ function startLevel() {
   Sound.play('roar');
 }
 
+// Mini-parón al dar golpes contundentes: da sensación de impacto
+function hitStop(t) { G.hitStop = Math.max(G.hitStop || 0, t); }
+
 function updatePlay(dt) {
+  if (G.flash > 0) G.flash -= dt;
+  if (G.hitStop > 0) { G.hitStop -= dt; return; }
   G.sceneT += dt;
+  if (G.scene === 'play') G.levelTime = (G.levelTime || 0) + dt;
   for (const p of G.players) updatePlayer(p, dt);
   const alive = updateBuildings(dt);
   if (G.scene === 'play') spawnEnemies(dt);
@@ -794,14 +859,17 @@ function updatePlay(dt) {
   if (G.scene === 'play' && alive === 0) {
     G.scene = 'levelEnd'; G.sceneT = 0;
     Sound.play('level');
-    G.players.forEach(p => { if (!p.out) p.score += 2000 + Math.round(p.health) * 10; });
+    // bonus por rapidez: cuanto antes arrasas la ciudad, más puntos
+    const fast = Math.max(0, Math.round(120 - G.levelTime)) * 40;
+    G.players.forEach(p => { if (!p.out) p.score += 2000 + Math.round(p.health) * 10 + fast; });
     G.enemies.forEach(e => { if (e.type === 'soldier') { e.state = 'walk'; e.dir = e.x < W / 2 ? -1 : 1; e.targetX = e.dir * 9999; } });
-    G.banner = { text: '¡CIUDAD DESTRUIDA!', sub: 'Bonus: 2000 + vida × 10', t: 4 };
+    G.banner = { text: '¡CIUDAD DESTRUIDA!', sub: `En ${Math.round(G.levelTime)} s · Bonus 2000 + vida×10 + rapidez ${fast}`, t: 4 };
   }
   if (G.scene === 'levelEnd' && G.sceneT > 4.2) { G.level++; startLevel(); }
 
   if (G.players.every(p => p.out)) {
     G.scene = 'gameover'; G.sceneT = 0;
+    G.newRecords = saveRecords(G.players);
     Sound.stopMusic(); Sound.play('gameover');
   }
 }
@@ -809,31 +877,47 @@ function updatePlay(dt) {
 // ---------------------------------------------------------------------------
 // Render
 // ---------------------------------------------------------------------------
-function drawBackground() {
+// El cielo y la silueta lejana se dibujan una sola vez por ciudad (más fluidez);
+// solo las nubes se mueven cada frame.
+const bgSky = document.createElement('canvas'), bgLine = document.createElement('canvas');
+let bgKey = '';
+function buildBackground(k) {
   const [top, bottom, night] = G.sky || SKIES[0];
-  const g = ctx.createLinearGradient(0, 0, 0, GROUND);
+  for (const cv of [bgSky, bgLine]) { cv.width = Math.ceil(W * k); cv.height = Math.ceil(GROUND * k); }
+  const a = bgSky.getContext('2d'); a.setTransform(k, 0, 0, k, 0, 0);
+  const g = a.createLinearGradient(0, 0, 0, GROUND);
   g.addColorStop(0, top); g.addColorStop(1, bottom);
-  ctx.fillStyle = g; ctx.fillRect(0, 0, W, GROUND);
+  a.fillStyle = g; a.fillRect(0, 0, W, GROUND);
   if (night) {
-    ctx.fillStyle = '#fff';
-    for (const s of G.stars) { ctx.globalAlpha = 0.5 + 0.5 * Math.sin(G.time * 2 + s.x); ctx.fillRect(s.x, s.y, s.s, s.s); }
-    ctx.globalAlpha = 1;
-    circle(ctx, 820, 80, 30, '#f4f1d0'); circle(ctx, 832, 72, 28, top);
+    a.fillStyle = '#fff';
+    for (const s of G.stars) { a.globalAlpha = 0.4 + (s.x * 7 % 10) / 16; a.fillRect(s.x, s.y, s.s, s.s); }
+    a.globalAlpha = 1;
+    circle(a, 820, 80, 30, '#f4f1d0'); circle(a, 832, 72, 28, top);
   } else {
-    ctx.globalAlpha = 0.85; circle(ctx, 830, 85, 34, '#fff7b0'); ctx.globalAlpha = 1;
+    a.globalAlpha = 0.85; circle(a, 830, 85, 34, '#fff7b0'); a.globalAlpha = 1;
+  }
+  const l = bgLine.getContext('2d'); l.setTransform(k, 0, 0, k, 0, 0);
+  l.fillStyle = night ? 'rgba(20,20,50,.9)' : 'rgba(80,100,140,.45)';
+  for (const s of G.skyline) l.fillRect(s.x, GROUND - s.h, s.w, s.h);
+  if (night) {
+    l.fillStyle = 'rgba(255,230,120,.5)';
+    for (const s of G.skyline) for (let yy = GROUND - s.h + 8; yy < GROUND - 10; yy += 14) for (let xx = s.x + 5; xx < s.x + s.w - 5; xx += 10) if ((xx * 7 + yy * 13) % 5 === 0) l.fillRect(xx, yy, 3, 4);
+  }
+}
+function drawBackground() {
+  const [top, , night] = G.sky || SKIES[0];
+  const k = Math.min(3, viewScale * (window.devicePixelRatio || 1));
+  const key = top + '|' + k + '|' + G.cityVersion;
+  if (key !== bgKey) { buildBackground(k); bgKey = key; }
+  ctx.drawImage(bgSky, 0, 0, W, GROUND);
+  if (!night) {
     ctx.fillStyle = 'rgba(255,255,255,.8)';
     for (let i = 0; i < 4; i++) {
       const cx = ((G.time * 8 + i * 280) % (W + 200)) - 100, cy = 50 + i * 30 % 90;
       ctx.beginPath(); ctx.ellipse(cx, cy, 50, 14, 0, 0, Math.PI * 2); ctx.ellipse(cx + 25, cy - 10, 30, 14, 0, 0, Math.PI * 2); ctx.fill();
     }
   }
-  // skyline lejano
-  ctx.fillStyle = night ? 'rgba(20,20,50,.9)' : 'rgba(80,100,140,.45)';
-  for (const s of G.skyline) ctx.fillRect(s.x, GROUND - s.h, s.w, s.h);
-  if (night) {
-    ctx.fillStyle = 'rgba(255,230,120,.5)';
-    for (const s of G.skyline) for (let yy = GROUND - s.h + 8; yy < GROUND - 10; yy += 14) for (let xx = s.x + 5; xx < s.x + s.w - 5; xx += 10) if ((xx * 7 + yy * 13) % 5 === 0) ctx.fillRect(xx, yy, 3, 4);
-  }
+  ctx.drawImage(bgLine, 0, 0, W, GROUND);
 }
 
 function drawStreet() {
@@ -887,6 +971,14 @@ function drawWindowContent(type, x, y, t) {
       limb(ctx, x + 13, y + 7, x + 16, y + 3, 1.5, '#a87');
       if (Math.floor(t * 10) % 2) circle(ctx, x + 16, y + 3, 2, '#ff0');
       break;
+    case 'rage': { // power-up FURIA: estrella que brilla
+      const k = 1 + Math.sin(t * 10) * 0.15;
+      ctx.save(); ctx.translate(x + 10, y + 10); ctx.rotate(t * 2); ctx.scale(k, k);
+      ctx.fillStyle = '#ff3a1a'; ctx.beginPath();
+      for (let i = 0; i < 10; i++) { const a = i * Math.PI / 5, rr = i % 2 ? 4 : 10; ctx.lineTo(Math.cos(a) * rr, Math.sin(a) * rr); }
+      ctx.closePath(); ctx.fill(); circle(ctx, 0, 0, 3.5, '#ffe040'); ctx.restore();
+      break;
+    }
     case 'tv':
       ctx.fillStyle = '#444'; ctx.fillRect(x + 3, y + 5, 14, 11);
       ctx.fillStyle = Math.floor(t * 12) % 2 ? '#9ff' : '#fff'; ctx.fillRect(x + 5, y + 7, 10, 7);
@@ -1076,9 +1168,18 @@ function drawPlayers() {
       } else drawHuman(ctx, p.x, p.y, p.f, p.anim, p.face, G.time);
       continue;
     }
+    if (p.rageT > 0) { // aura de FURIA
+      const a = 0.35 + Math.sin(G.time * 18) * 0.15;
+      const gl = ctx.createRadialGradient(p.x, p.y - 70, 10, p.x, p.y - 70, 95);
+      gl.addColorStop(0, `rgba(255,60,20,${a})`); gl.addColorStop(1, 'rgba(255,60,20,0)');
+      ctx.fillStyle = gl; ctx.fillRect(p.x - 100, p.y - 170, 200, 180);
+    }
     if (p.invT > 0 && Math.floor(G.time * 16) % 2 === 0) ctx.globalAlpha = 0.45;
-    drawMonster(ctx, p, G.time);
+    // mientras agarra a alguien, el brazo queda levantado hacia la boca
+    const grabbing = p.grab && !p.grab.done;
+    drawMonster(ctx, grabbing ? { ...p, punchT: 0.1, punchDir: 'up' } : p, G.time);
     ctx.globalAlpha = 1;
+    drawGrab(p);
     // indicador de jugador
     ctx.fillStyle = p.color;
     ctx.beginPath(); ctx.moveTo(p.x - 6, p.y - 162); ctx.lineTo(p.x + 6, p.y - 162); ctx.lineTo(p.x, p.y - 154); ctx.fill();
@@ -1116,6 +1217,7 @@ function drawHUD() {
     for (let k = 0; k < Math.max(0, p.lives); k++) text('♥', x0 + 232 + k * 18, 36, 16, '#ff4060', 'left', 3);
     const k = comboMult(p);
     if (k > 1) text(`x${k}`, x0 + 248, 18, 18 + k * 2, k >= 5 ? '#ff4040' : '#ffcc00', 'left', 4);
+    if (p.rageT > 0) text(`FURIA ${Math.ceil(p.rageT)}`, x0 + 48, 56, 14, Math.floor(G.time * 8) % 2 ? '#ff3a1a' : '#ffcc00', 'left', 3);
     ctx.restore();
   });
   if (G.numPlayers === 1) text('1 JUGADOR', W - 20, 28, 14, '#aaa', 'right', 3);
@@ -1147,6 +1249,7 @@ function drawWorld() {
   drawParticles();
   drawFloaters();
   ctx.restore();
+  if (G.flash > 0) { ctx.fillStyle = `rgba(255,250,235,${Math.min(0.6, G.flash * 1.6)})`; ctx.fillRect(0, 0, W, H); }
 }
 
 // ---------------------------------------------------------------------------
@@ -1219,6 +1322,8 @@ function drawTitle() {
     text('RAMPAGE', W / 2, 180 + wob, 80, '#ff3b2f', 'center', 12);
   }
   text('¡Tu cara, tu monstruo!', W / 2, 213, 19, '#ffcc00', 'center', 5);
+  const rec = (G.records || (G.records = loadRecords()))[0];
+  if (rec) text(`🏆 ${rec.name}  ${rec.score}`, W - 16, 30, 16, '#ffcc00', 'right', 4);
 
   // monstruos de muestra
   const faces = G.setup.map(s => s.face || MONSTERS[s.monster]._defaultFace || (MONSTERS[s.monster]._defaultFace = defaultFace(MONSTERS[s.monster])));
@@ -1250,23 +1355,64 @@ function drawTitle() {
   text(padTxt + '   ·   P = pausa · M = sonido', W / 2, 488, 12, '#9fd', 'center', 3);
 }
 
+// ---------------------------------------------------------------------------
+// Récords (se guardan en este navegador)
+// ---------------------------------------------------------------------------
+const RECORDS_KEY = 'faceRampage.records.v1';
+function loadRecords() {
+  try { const r = JSON.parse(localStorage.getItem(RECORDS_KEY) || '[]'); return Array.isArray(r) ? r : []; }
+  catch (e) { return []; }
+}
+function saveRecords(players) {
+  const list = loadRecords();
+  const mine = [];
+  for (const p of players) {
+    if (p.score <= 0) continue;
+    const e = { name: p.name, score: p.score, level: G.level, t: Date.now() + p.i };
+    list.push(e); mine.push(e);
+  }
+  list.sort((a, b) => b.score - a.score);
+  const top = list.slice(0, 5);
+  try { localStorage.setItem(RECORDS_KEY, JSON.stringify(top)); } catch (e) { /* sin almacenamiento */ }
+  G.records = top;
+  // posición de cada jugador en la tabla (-1 si no ha entrado)
+  return players.map(p => top.findIndex(e => mine.some(m => m.t === e.t && m.name === p.name && m.score === p.score)));
+}
+
+function drawRecordsTable(x, y, highlight = []) {
+  const list = G.records || loadRecords();
+  ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(x - 10, y - 30, 190, 46 + Math.max(1, list.length) * 28);
+  text('🏆 RÉCORDS', x + 85, y - 6, 18, '#ffcc00', 'center', 4);
+  if (!list.length) { text('¡Sé el primero!', x + 85, y + 28, 15, '#ccc', 'center', 3); return; }
+  list.forEach((e, k) => {
+    const hl = highlight.includes(k) && Math.floor(G.time * 4) % 2;
+    const col = hl ? '#ffcc00' : '#fff';
+    text(`${k + 1}. ${e.name}`, x, y + 28 + k * 28, 15, col, 'left', 3);
+    text(String(e.score), x + 172, y + 28 + k * 28, 15, col, 'right', 3);
+  });
+}
+
 function drawGameOver() {
   drawWorld();
   ctx.fillStyle = 'rgba(0,0,0,.65)'; ctx.fillRect(0, 0, W, H);
   text('GAME OVER', W / 2, 150, 76, '#ff3b2f', 'center', 10);
   text(`Has llegado al día ${G.level} (${G.city})`, W / 2, 196, 22, '#fff', 'center', 4);
+  const ranks = G.newRecords || [];
   G.players.forEach((p, i) => {
-    const cx = G.players.length === 1 ? W / 2 : W / 2 + (i === 0 ? -170 : 170);
+    const cx = G.players.length === 1 ? W / 2 - 120 : (i === 0 ? 170 : 470);
     circle(ctx, cx, 290, 58, p.color);
     ctx.drawImage(p.face, cx - 54, 236, 108, 108);
     text(p.name, cx, 378, 22, p.color, 'center', 4);
     text(String(p.score), cx, 412, 34, '#fff', 'center', 5);
+    if (ranks[i] === 0) text('¡NUEVO RÉCORD!', cx, 444, 22, Math.floor(G.time * 6) % 2 ? '#ffcc00' : '#ff5030', 'center', 4);
+    else if (ranks[i] > 0) text(`¡TOP ${ranks[i] + 1}!`, cx, 444, 20, '#ffcc00', 'center', 4);
   });
   if (G.players.length === 2) {
     const [a, b] = G.players;
     const msg = a.score === b.score ? '¡EMPATE!' : `¡GANA ${(a.score > b.score ? a : b).name}!`;
-    text(msg, W / 2, 300, 26, '#ffcc00', 'center', 5);
+    text(msg, 320, 300, 24, '#ffcc00', 'center', 5);
   }
+  drawRecordsTable(760, 250, ranks.filter(r => r >= 0));
   if (G.sceneT > 1.5 && Math.floor(G.time * 2) % 2) text('Pulsa ENTER o un botón para volver al menú', W / 2, 480, 20, '#fff', 'center', 4);
 }
 

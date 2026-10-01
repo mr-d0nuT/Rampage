@@ -34,8 +34,15 @@ no permiten usar la cámara desde `file://`; en ese caso usa **📁 Subir imagen
 - Vibra con los golpes, los daños y los derrumbes. Si pones el móvil en vertical, el juego se pausa.
 - Se puede **instalar como app**: "Añadir a pantalla de inicio" (iPhone: botón Compartir; Android: menú ⋮).
 
-## 🔥 Combos
-Golpes seguidos (sin parar más de 1,6 s) multiplican los puntos: **x2, x3, x4 y hasta x5**.
+## 🔥 Combos, furia y récords
+- Golpes seguidos (sin parar más de 1,6 s) multiplican los puntos: **x2, x3, x4 y hasta x5**.
+- ⭐ **FURIA**: a veces aparece una estrella roja en una ventana. Rómpela y durante 8 segundos rompes
+  todo de un golpe, golpeas más rápido y corres más.
+- Si golpeas donde hay una persona o un soldado, tu monstruo **lo agarra y se lo come** (recupera vida).
+- **Bonus por rapidez**: cuanto antes arrases la ciudad, más puntos.
+- **Tabla de récords** (top 5 con vuestros nombres), guardada en el navegador. ¡A por el NUEVO RÉCORD!
+- Controles permisivos: un golpe pulsado un instante antes de tiempo no se pierde, se puede saltar justo
+  después de salir de una azotea y, si saltas contra el lateral de un edificio, te agarras solo.
 
 ## 📸 La foto (con recorte automático de la cara)
 - Elige **1 o 2 jugadores**, después cada jugador (por turnos) elige su monstruo y pulsa **Hacer foto**:

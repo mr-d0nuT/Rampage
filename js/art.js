@@ -348,6 +348,8 @@ function seg(g, pts, w, col) { // extremidad gruesa por varios puntos
   g.strokeStyle = col; g.lineWidth = w; g.lineCap = 'round'; g.lineJoin = 'round';
   g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.stroke();
 }
+// extremidad delantera con su propio contorno, para que se separe del torso
+function segO(g, pts, w, col) { seg(g, pts, w + 2, '#120a06'); seg(g, pts, w, col); }
 function spikes(g, pts, col, len) {
   g.fillStyle = col;
   for (let i = 0; i < pts.length - 1; i++) {
@@ -360,10 +362,11 @@ function spikes(g, pts, col, len) {
 // Brazo delantero según la acción (devuelve los puntos hombro-codo-puño)
 function frontArm(sx, sy, s, k, walk, rest) {
   if (s.punchT > 0) {
-    if (s.punchDir === 'up') return [[sx, sy], [sx + 3, sy - 9], [sx + 4, sy - 18 - k * 4]];
+    if (s.punchDir === 'up') return [[sx, sy], [sx + 7, sy - 8], [sx + 11, sy - 20 - k * 3]];
     if (s.punchDir === 'down') return [[sx, sy], [sx + 7, sy + 9], [sx + 12, sy + 20 + k * 3]];
     return [[sx, sy], [sx + 9, sy + 1], [sx + 17 + k * 5, sy]];
   }
+  if (s.state === 'air') return [[sx, sy], [sx + 6, sy - 6], [sx + 9, sy - 14]]; // brazos arriba al saltar
   return rest(walk);
 }
 
@@ -372,7 +375,8 @@ function drawBodySprite(g, s, m, col) {
   const k = s.punchT > 0 ? 1 - Math.abs(s.punchT / 0.2 - 0.5) * 2 : 0;
   const walk = Math.sin(s.anim);
   const air = s.state === 'air';
-  const lg = air ? 0 : walk * 3;
+  const lg = air ? 0 : walk * 4.5;
+  const L = (normal, tucked) => (air ? tucked : normal); // piernas encogidas en el salto
 
   if (s.state === 'climb') {
     // De perfil pegado a la pared (pared a la derecha): piernas de rana, brazos arriba
@@ -382,52 +386,53 @@ function drawBodySprite(g, s, m, col) {
     seg(g, [[38, 56], [46, 58 - a], [46, 66 - a]], 7, dark);                 // pierna de atrás
     seg(g, [[38, 58], [47, 63 + a], [46, 72 + a]], 8, body);                 // pierna delantera
     ell(g, 48, 72 + a, 3, 2, dark);
-    seg(g, [[40, 40], [46, 32 + a], [48, 24 + a]], 6, dark);                 // brazo de atrás agarrado
+    seg(g, [[40, 40], [48, 36 + a], [52, 30 + a]], 6, dark);                 // brazo de atrás agarrado a la pared
+    ell(g, 53, 30 + a, 3, 3, dark);
     ell(g, 39, 48, 9, 14, body);                                             // torso
     ell(g, 43, 50, 4, 9, belly);
     if (m.type === 'lizard') spikes(g, [[31, 58], [30, 50], [31, 42], [34, 36]], dark, 3);
     else spikes(g, [[31, 58], [30, 50], [31, 42], [35, 36]], body, 2.5);
-    const fa = frontArm(42, 40, s, k, a, w => [[42, 40], [46, 31 - w], [49, 22 - w]]);
-    seg(g, fa, 7, body); ell(g, fa[2][0] + 1, fa[2][1], 3.5, 3.5, dark);
+    const fa = frontArm(42, 41, s, k, a, w => [[42, 41], [49, 44 - w], [53, 40 - w]]);
+    segO(g, fa, 7, body); ell(g, fa[2][0] + 1, fa[2][1], 3.5, 3.5, dark);
     return { nx: 41, ny: 37 };
   }
 
   if (m.type === 'ape') {
     // George: encorvado, joroba de hombros enorme, nudillos casi en el suelo
-    seg(g, [[35, 62], [33 - lg, 69], [34 - lg, 75]], 7, dark);
-    ell(g, 35 - lg, 75, 4.5, 2, dark);
-    seg(g, [[30, 44], [26, 56], [28 + walk * 2, 70]], 6.5, dark);          // brazo de atrás
-    ell(g, 28 + walk * 2, 70, 3.5, 3, dark);
+    const bl = L([[35, 62], [33 - lg, 69], [34 - lg, 75]], [[35, 62], [40, 66], [37, 71]]);
+    seg(g, bl, 7, dark); ell(g, bl[2][0] + 1, bl[2][1], 4.5, 2, dark);
+    const ba = air ? [[30, 44], [26, 36], [27, 28]] : [[30, 44], [26, 56], [28 + walk * 3, 70]]; // brazo de atrás
+    seg(g, ba, 6.5, dark); ell(g, ba[2][0], ba[2][1], 3.5, 3, dark);
     ell(g, 39, 54, 12, 11, body);                                           // barriga/caderas
     ell(g, 41, 43, 14, 9, body);                                            // joroba de hombros
-    seg(g, [[44, 62], [46 + lg, 69], [46 + lg, 75]], 8, body);              // pierna delantera
-    ell(g, 48 + lg, 75, 5, 2, dark);
+    const fl = L([[44, 62], [46 + lg, 69], [46 + lg, 75]], [[44, 62], [51, 64], [49, 71]]); // pierna delantera
+    segO(g, fl, 8, body); ell(g, fl[2][0] + 2, fl[2][1], 5, 2, dark);
     ell(g, 47, 50, 6, 8, belly);                                            // pecho claro
     spikes(g, [[28, 52], [27, 44], [31, 37], [38, 34], [46, 34]], body, 2.5);
     g.strokeStyle = dark; g.lineWidth = 1;
     for (let i = 0; i < 4; i++) { g.beginPath(); g.moveTo(32 + i * 3, 40 + i); g.lineTo(31 + i * 3, 45 + i); g.stroke(); }
-    const fa = frontArm(50, 42, s, k, walk, w => [[50, 42], [55, 54 - w], [53 - w * 2, 69]]);
-    seg(g, fa, 7.5, body); ell(g, fa[2][0], fa[2][1], 4, 3.5, dark);
+    const fa = frontArm(50, 42, s, k, walk, w => [[50, 42], [55, 54 - w], [53 - w * 3, 69]]);
+    segO(g, fa, 7.5, body); ell(g, fa[2][0], fa[2][1], 4, 3.5, dark);
     return { nx: 46, ny: 38 };
   }
   if (m.type === 'wolf') {
     // Ralph: erguido, musculoso, piernas de lobo dobladas, cola peluda
     ell(g, 27, 56 + walk, 4, 9, dark, 0.7);                                  // cola
-    seg(g, [[36, 58], [38 - lg, 65], [34 - lg, 70], [37 - lg, 75]], 6, dark);
-    ell(g, 38 - lg, 75, 4, 1.8, dark);
-    seg(g, [[32, 38], [27, 48], [30 + walk * 2, 57]], 6, dark);              // brazo de atrás
+    const bl = L([[36, 58], [38 - lg, 65], [34 - lg, 70], [37 - lg, 75]], [[36, 58], [42, 62], [40, 68], [43, 71]]);
+    seg(g, bl, 6, dark); ell(g, bl[3][0] + 1, bl[3][1], 4, 1.8, dark);
+    seg(g, air ? [[32, 38], [28, 30], [30, 22]] : [[32, 38], [27, 48], [30 + walk * 3, 57]], 6, dark); // brazo de atrás
     spikes(g, [[29, 60], [31, 62], [33, 60]], dark, 3);
     g.fillStyle = body;                                                      // torso en V
     g.beginPath(); g.moveTo(29, 36); g.quadraticCurveTo(40, 30, 52, 36); g.lineTo(47, 50); g.quadraticCurveTo(44, 60, 40, 60);
     g.quadraticCurveTo(34, 60, 33, 50); g.closePath(); g.fill();
-    seg(g, [[43, 58], [46 + lg, 65], [42 + lg, 70], [45 + lg, 75]], 7, body);
-    ell(g, 47 + lg, 75, 4.5, 1.8, dark);
+    const fl = L([[43, 58], [46 + lg, 65], [42 + lg, 70], [45 + lg, 75]], [[43, 58], [50, 61], [48, 67], [51, 70]]);
+    segO(g, fl, 7, body); ell(g, fl[3][0] + 2, fl[3][1], 4.5, 1.8, dark);
     g.fillStyle = belly;                                                     // pecho blanco
     g.beginPath(); g.moveTo(37, 38); g.quadraticCurveTo(44, 36, 48, 40); g.lineTo(44, 54); g.quadraticCurveTo(40, 57, 38, 52); g.closePath(); g.fill();
     spikes(g, [[29, 46], [28, 40], [31, 35], [36, 33]], body, 2.5);
     spikes(g, [[45, 33], [50, 34], [53, 38]], body, 2);
     const fa = frontArm(49, 39, s, k, walk, w => [[49, 39], [54, 47 - w], [50 - w, 55]]);
-    seg(g, fa, 6.5, body); ell(g, fa[2][0], fa[2][1], 3.2, 3, dark);
+    segO(g, fa, 6.5, body); ell(g, fa[2][0], fa[2][1], 3.2, 3, dark);
     spikes(g, [[fa[2][0] - 2, fa[2][1] + 2], [fa[2][0] + 2, fa[2][1] + 3]], '#f0ece0', 2.5); // garras
     return { nx: 41, ny: 34 };
   }
@@ -435,19 +440,19 @@ function drawBodySprite(g, s, m, col) {
   g.fillStyle = body;
   g.beginPath(); g.moveTo(34, 56); g.quadraticCurveTo(22, 64, 8 + walk, 74); g.lineTo(10 + walk, 77);
   g.quadraticCurveTo(26, 72, 38, 66); g.closePath(); g.fill();              // cola
-  seg(g, [[36, 64], [34 - lg, 70], [35 - lg, 75]], 7, dark);
-  ell(g, 36 - lg, 75, 4.5, 2, dark);
-  seg(g, [[34, 42], [30, 50], [33 + walk, 56]], 5.5, dark);                 // bracito de atrás
+  const bl = L([[36, 64], [34 - lg, 70], [35 - lg, 75]], [[36, 64], [41, 68], [38, 73]]);
+  seg(g, bl, 7, dark); ell(g, bl[2][0] + 1, bl[2][1], 4.5, 2, dark);
+  seg(g, air ? [[34, 42], [30, 35], [31, 28]] : [[34, 42], [30, 50], [33 + walk * 2, 56]], 5.5, dark); // bracito de atrás
   ell(g, 40, 52, 11, 15, body);                                             // torso en pera
-  seg(g, [[44, 64], [46 + lg, 70], [46 + lg, 75]], 8, body);
-  ell(g, 48 + lg, 75, 5, 2, dark);
+  const fl = L([[44, 64], [46 + lg, 70], [46 + lg, 75]], [[44, 64], [51, 67], [49, 73]]);
+  segO(g, fl, 8, body); ell(g, fl[2][0] + 2, fl[2][1], 5, 2, dark);
   ell(g, 44, 54, 7, 11, belly);                                             // barriga
   g.strokeStyle = shade(m.belly, 0.75); g.lineWidth = 0.8;
   for (let y = 46; y < 64; y += 3) { g.beginPath(); g.moveTo(39, y); g.lineTo(50, y + 1); g.stroke(); }
   spikes(g, [[30, 62], [29, 54], [30, 46], [33, 40], [37, 37]], dark, 3);
   g.fillStyle = dark; for (let i = 0; i < 8; i++) g.fillRect(33 + (i % 3) * 3, 42 + Math.floor(i / 3) * 5, 1, 1);
   const fa = frontArm(47, 42, s, k, walk, w => [[47, 42], [52, 48 - w], [50, 55]]);
-  seg(g, fa, 6, body); ell(g, fa[2][0], fa[2][1], 3, 3, dark);
+  segO(g, fa, 6, body); ell(g, fa[2][0], fa[2][1], 3, 3, dark);
   return { nx: 42, ny: 37 };
 }
 
@@ -483,7 +488,7 @@ function drawMonster(c, s, time) {
   c.imageSmoothingEnabled = smooth;
   c.restore();
   // 4) la cabeza (foto o retrato) sobre los hombros
-  const hx = s.x + s.f * (neck.nx - FOOT_X) * PX;
+  const hx = s.x + s.f * (neck.nx - FOOT_X) * PX - (s.state === 'climb' ? s.f * 12 : 0);
   const hy = s.y + (neck.ny - FOOT_Y) * PX - HEAD_R * 0.75;
   drawHead(c, hx, hy, HEAD_R, m, s.face, { hurt, eat: s.eatT, time, tilt: punching ? s.f * 0.1 : 0, f: s.f, roar: punching });
 }
