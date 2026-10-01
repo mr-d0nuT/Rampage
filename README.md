@@ -4,15 +4,16 @@ Un clon del clásico arcade **Rampage** (1986) para **1 o 2 jugadores** en el na
 con un extra: **al empezar, cada jugador se hace una foto con la webcam y su cara pasa a ser
 la cara de su monstruo** (y también la del humanito en calzoncillos que aparece cuando pierdes una vida 😅).
 
-Hecho con HTML5 Canvas + JavaScript puro. No hace falta instalar nada ni descargar recursos externos:
-los gráficos, la música y los efectos se generan por código.
+**▶️ Juega ya: https://mr-d0nut.github.io/Rampage/**
+
+Hecho con HTML5 Canvas + JavaScript puro, sin instalar nada. Los gráficos y los efectos se generan por código,
+y la banda sonora está en `music/`.
 
 ## ▶️ Cómo jugar
 
-### Opción A: GitHub Pages (recomendado)
-1. En este repositorio, ve a **Settings → Pages**.
-2. En *Build and deployment*, elige **Source: Deploy from a branch**, **Branch: `main`**, carpeta **`/ (root)`** y pulsa **Save**.
-3. En un minuto el juego estará en `https://mr-d0nut.github.io/Rampage/`.
+### Opción A: online (GitHub Pages)
+Abre **https://mr-d0nut.github.io/Rampage/**. La web se publica desde la rama `gh-pages`
+(para actualizarla: `git push origin main:gh-pages`).
 
 > Como GitHub Pages sirve el juego por **https**, el navegador te deja usar la webcam.
 
@@ -91,11 +92,22 @@ que es el reparto habitual en los juegos de PC para 2 jugadores.
 - Cada jugador tiene **3 vidas**. Al perder toda la energía, tu monstruo se convierte en un humano
   (con tu cara) que huye avergonzado… y después vuelves a entrar.
 
+## 🎵 Banda sonora
+| Momento | Tema |
+|---|---|
+| Menú y selección de monstruo | `music/rampage-ost1.mp3` |
+| Días 1, 4, 7… | `music/rampage-ost2.mp3` |
+| Días 2, 5, 8… | `music/boss-battle.mp3` |
+| Días 3, 6, 9… | `music/boss-rush.mp3` |
+
+Temas instrumentales creados con Suno para este juego. `M` silencia música y efectos, y la pausa (`P`) detiene la música.
+
 ## 🗂️ Estructura
 ```
 index.html        página y pantalla de foto
 css/style.css     estilos
-js/audio.js       música y efectos (WebAudio sintetizado)
+js/audio.js       banda sonora (MP3) y efectos (WebAudio sintetizado)
+music/            banda sonora
 js/input.js       teclado compartido + mandos
 js/art.js         dibujo de monstruos y procesado de la foto
 js/facecut.js     recorte automático de la cara (MediaPipe)

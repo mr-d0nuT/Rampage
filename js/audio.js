@@ -2,7 +2,7 @@
 // Sonido sintetizado con WebAudio (sin archivos externos).
 const Sound = (() => {
   let ac = null, master = null, sfxGain = null, musicGain = null, noiseBuf = null;
-  let muted = false, musicTimer = null, nextNote = 0, step = 0;
+  let muted = false;
 
   // Safari (Mac/iPhone) solo deja sonar el audio si el AudioContext se crea o se
   // reanuda dentro de un gesto del usuario, y a veces lo pasa a "suspended" o
@@ -31,6 +31,7 @@ const Sound = (() => {
     }
   }
   const ready = () => !!ac && ac.state === 'running';
+  function initAll() { init(); unlockMusic(); }
 
   function tone(freq, dur, type = 'square', vol = 0.2, slideTo = null, delay = 0, out = null) {
     if (!ready()) return;
@@ -79,42 +80,66 @@ const Sound = (() => {
     heli()    { noise(0.04, 0.05, 300); },
   };
 
-  // --- Música: bucle de bajo + batería sencillo, programado con antelación ---
-  const BASS = [45, 0, 45, 57, 0, 45, 55, 0, 43, 0, 43, 55, 0, 43, 53, 0,
-                41, 0, 41, 53, 0, 41, 52, 0, 40, 0, 40, 52, 0, 47, 48, 50];
-  const LEAD = [0, 0, 69, 0, 72, 0, 69, 0, 0, 0, 67, 0, 71, 0, 67, 0,
-                0, 0, 65, 0, 69, 0, 65, 0, 64, 0, 68, 0, 71, 0, 76, 0];
-  const midi = n => 440 * Math.pow(2, (n - 69) / 12);
-  const STEP = 60 / 150 / 2; // corcheas a 150 bpm
+  // --- Banda sonora (MP3 en /music) ---
+  // Se usa un único <audio> que se "desbloquea" en el primer gesto del usuario
+  // (necesario en Safari/Mac e iPhone); después ya puede cambiar de canción solo.
+  const TRACKS = {
+    title: 'music/rampage-ost1.mp3',
+    levels: ['music/rampage-ost2.mp3', 'music/boss-battle.mp3', 'music/boss-rush.mp3'],
+  };
+  const MUSIC_VOL = 0.55;
+  const music = new Audio();
+  music.loop = true; music.preload = 'auto'; music.volume = MUSIC_VOL;
+  let wanted = null, musicPaused = false, unlocked = false, pending = false, refused = false;
 
-  function schedule() {
-    if (!ready()) return;
-    if (nextNote < ac.currentTime) nextNote = ac.currentTime + 0.05; // tras una pausa del audio
-    while (nextNote < ac.currentTime + 0.25) {
-      const i = step % BASS.length;
-      const t = nextNote - ac.currentTime;
-      if (BASS[i]) tone(midi(BASS[i]), STEP * 0.9, 'square', 0.16, null, t, musicGain);
-      if (LEAD[i] && Math.floor(step / 32) % 2 === 1) tone(midi(LEAD[i]), STEP * 0.8, 'triangle', 0.13, null, t, musicGain);
-      if (i % 4 === 0) { tone(150, 0.12, 'sine', 0.35, 45, t, musicGain); }
-      if (i % 8 === 4) noise(0.12, 0.22, 2500, t, musicGain);
-      if (i % 2 === 1) noise(0.03, 0.08, 9000, t, musicGain);
-      nextNote += STEP; step++;
+  function syncMusic() {
+    if (!wanted || musicPaused) { if (!music.paused) music.pause(); return; }
+    const url = new URL(wanted, document.baseURI).href;
+    if (music.src !== url) { music.src = url; music.currentTime = 0; }
+    music.muted = muted;
+    if (music.paused && !pending && !refused) {
+      pending = true;
+      const pr = music.play();
+      if (pr && pr.then) pr.then(() => { pending = false; }, e => {
+        pending = false;
+        if (e && e.name === 'NotAllowedError') refused = true; // hasta el próximo gesto
+        else setTimeout(syncMusic, 50); // p. ej. cambio de canción a medio arrancar
+      });
+      else pending = false;
     }
   }
-  function startMusic() {
-    if (musicTimer) return;
-    nextNote = 0; step = 0;
-    musicTimer = setInterval(schedule, 60);
+  function unlockMusic() {
+    refused = false;
+    if (unlocked) { syncMusic(); return; }
+    unlocked = true;
+    if (!wanted) { // "toca" en silencio para que Safari permita reproducir luego
+      music.src = new URL(TRACKS.title, document.baseURI).href;
+      music.muted = true;
+      const pr = music.play();
+      if (pr && pr.then) pr.then(() => { if (!wanted) music.pause(); music.muted = muted; syncMusic(); }).catch(() => { unlocked = false; });
+      return;
+    }
+    syncMusic();
   }
-  function stopMusic() { clearInterval(musicTimer); musicTimer = null; }
+  // 'title' o el número de nivel (1, 2, 3…)
+  function playMusic(which) {
+    const t = which === 'title' ? TRACKS.title : TRACKS.levels[(which - 1) % TRACKS.levels.length];
+    if (t === wanted && !musicPaused) return;
+    wanted = t; musicPaused = false;
+    syncMusic();
+  }
+  function stopMusic() { wanted = null; music.pause(); }
+  function pauseMusic(p) { musicPaused = p; syncMusic(); }
 
   function toggleMute() {
     muted = !muted;
     if (master) master.gain.value = muted ? 0 : 0.55;
+    music.muted = muted;
     return muted;
   }
 
   function play(name) { if (ready() && sfx[name]) sfx[name](); }
 
-  return { init, play, startMusic, stopMusic, toggleMute, get muted() { return muted; }, get blocked() { return !ready(); } };
+  return { init: initAll, play, playMusic, stopMusic, pauseMusic, toggleMute, get muted() { return muted; }, get musicState() { return { src: music.src.split('/').pop(), paused: music.paused, t: music.currentTime | 0 }; },
+    get blocked() { return !ready() || (!!wanted && music.paused && !musicPaused); } };
 })();

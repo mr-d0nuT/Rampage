@@ -722,7 +722,6 @@ function startGame() {
   for (let i = 0; i < G.numPlayers; i++) G.players.push(makePlayer(i));
   G.level = 1;
   startLevel();
-  Sound.startMusic();
 }
 
 function startLevel() {
@@ -731,6 +730,7 @@ function startLevel() {
   G.spawn = { soldier: 2.5, heli: 7, tank: 10, window: 1 };
   G.scene = 'play'; G.sceneT = 0; G.paused = false;
   G.city = CITY_DATA[(G.level - 1) % CITY_DATA.length].name;
+  Sound.playMusic(G.level);
   G.sky = SKIES[(G.level - 1) % SKIES.length];
   G.banner = { text: G.city, sub: 'DÍA ' + G.level + ' · ¡Derriba ' + G.buildings.map(b => b.name).join(', ') + '!', t: 3.5 };
   G.players.forEach((p, i) => {
@@ -1151,6 +1151,7 @@ function update(dt) {
 
   switch (G.scene) {
     case 'title': {
+      Sound.playMusic('title');
       Input.numPlayers = G.titleSel + 1;
       if (Input.key('Tab')) Input.swapPads = !Input.swapPads;
       const up = Input.pressed(0, 'up') || Input.pressed(1, 'up') || Input.key('Digit1');
@@ -1175,9 +1176,9 @@ function update(dt) {
     case 'play':
     case 'levelEnd': {
       const pausePressed = Input.key('KeyP') || Input.key('Escape') || Input.pressed(0, 'start') || Input.pressed(1, 'start');
-      if (pausePressed) G.paused = !G.paused;
+      if (pausePressed) { G.paused = !G.paused; Sound.pauseMusic(G.paused); }
       if (G.paused) {
-        if (Input.key('KeyQ')) { G.paused = false; G.scene = 'title'; titleCity = false; Sound.stopMusic(); }
+        if (Input.key('KeyQ')) { G.paused = false; G.scene = 'title'; titleCity = false; Sound.pauseMusic(false); }
         break;
       }
       updatePlay(dt);
