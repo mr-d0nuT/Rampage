@@ -155,17 +155,25 @@ function damageCell(hit, p) {
   return true;
 }
 
-// Daño estructural: si una planta se queda casi sin paredes, el edificio se viene abajo.
-// (Por eso, golpeando bien desde los lados y en diagonal, se derriba muy rápido.)
+// Daño estructural: una planta está "rota" si se queda casi sin paredes. Para que el
+// edificio se venga abajo hacen falta varias plantas rotas (2, o 3 si es alto),
+// o haber destrozado más de la mitad. Con una sola planta rota, cruje y se tambalea.
 const rowLimit = b => Math.floor((b.cols - 1) / 3);
 function rowIntact(b, r) { return b.cells[r].filter(c => c.hp > 0).length; }
+const rowsNeeded = b => (b.rows >= 8 ? 3 : 2);
+function brokenRows(b) {
+  let n = 0;
+  for (let r = 0; r < b.rows; r++) if (rowIntact(b, r) <= rowLimit(b)) n++;
+  return n;
+}
 function registerBreak(b, r) {
   b.broken++;
   if (b.collapsing) return;
-  const intact = rowIntact(b, r);
-  if (intact <= rowLimit(b) || b.broken >= Math.ceil(b.total * 0.55)) { collapse(b); return; }
-  if (intact === rowLimit(b) + 1 && !b.creaking) {
-    b.creaking = true;
+  const weak = brokenRows(b);
+  if (weak >= rowsNeeded(b) || b.broken >= Math.ceil(b.total * 0.55)) { collapse(b); return; }
+  const nearly = weak === rowsNeeded(b) - 1 && rowIntact(b, r) <= rowLimit(b);
+  if (nearly && b.creakLevel !== weak) {
+    b.creakLevel = weak; b.creaking = true;
     Sound.play('crack');
     floater(b.x + b.w / 2, roofY(b) + r * CELL, '¡CRAAACK!', '#ffd27a');
   }

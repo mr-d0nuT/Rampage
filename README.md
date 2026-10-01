@@ -12,8 +12,9 @@ y la banda sonora está en `music/`.
 ## ▶️ Cómo jugar
 
 ### Opción A: online (GitHub Pages)
-Abre **https://mr-d0nut.github.io/Rampage/**. Cada cambio en `main` se publica solo: la acción
-`.github/workflows/publicar-web.yml` lo copia a la rama `gh-pages`, que es la que sirve GitHub Pages.
+Abre **https://mr-d0nut.github.io/Rampage/**. GitHub Pages publica la rama `main` automáticamente.
+Los archivos llevan `?v=...` en `index.html` para que el navegador no use versiones viejas en caché:
+cambia ese número al publicar cambios.
 
 > Como GitHub Pages sirve el juego por **https**, el navegador te deja usar la webcam.
 
@@ -94,8 +95,8 @@ que es el reparto habitual en los juegos de PC para 2 jugadores.
 ## 🏙️ Reglas (como en el original)
 - Como en el Rampage de 1986, los monstruos **trepan por los laterales** de los edificios y los destrozan a puñetazos.
   Si una ventana ya está rota, el puño entra por el agujero y golpea las de dentro.
-- **Daño estructural:** si dejas una planta casi sin paredes, **el edificio se derrumba** (+1000). Golpeando bien
-  desde los lados y en diagonal hacia abajo se derriba en pocos golpes. Cuando cruje y se tambalea, ¡le falta poco!
+- **Daño estructural:** una planta queda rota si la dejas casi sin paredes. Con **2 plantas rotas** (3 en los
+  edificios altos) o la mitad del edificio destrozado, **se derrumba** (+1000). Cuando cruje y se tambalea, ¡le falta poco!
 - **Derriba todos los edificios** para destruir la ciudad y pasar al día siguiente.
 - **Cada ciudad tiene sus edificios emblemáticos:**
   Barcelona (Sagrada Família, Casa Batlló, Torre Glòries, La Pedrera), Madrid (Metrópolis, Puerta de Alcalá, Edificio España, Torre Picasso),
