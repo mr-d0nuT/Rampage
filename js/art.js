@@ -61,7 +61,7 @@ function defaultFace(m) {
   const g = c.getContext('2d');
   g.fillStyle = '#1d3a5c'; // fondo azul como los retratos del original
   g.beginPath(); g.arc(FACE_SIZE / 2, FACE_SIZE / 2, FACE_SIZE / 2, 0, Math.PI * 2); g.fill();
-  drawMonsterHead(g, FACE_SIZE / 2, FACE_SIZE * 0.58, 46, m, { f: 1, open: 0.7, front: true });
+  drawMonsterHead(g, FACE_SIZE / 2, FACE_SIZE * 0.6, 44, m, { f: 1, open: 0.7, front: true });
   c._monster = true;
   return c;
 }
@@ -82,104 +82,129 @@ function fangs(c, x0, x1, y, h, dir, n, color = '#fbf6e8') {
   }
 }
 
-// Cabeza de monstruo dibujada por código. u = unidad de escala (r/24).
-// opts.f = hacia dónde mira, opts.open = boca abierta 0..1
+// Cabeza de monstruo dibujada por código, de frente y con cara de pocos amigos
+// (al estilo de los retratos del arcade). u = r/24. opts.open = boca abierta 0..1
 function drawMonsterHead(c, cx, cy, r, m, opts = {}) {
-  const u = r / 24, f = opts.f || 1, o = Math.max(0, Math.min(1, opts.open ?? 0.3));
+  const u = r / 24, o = Math.max(0, Math.min(1, opts.open ?? 0.3));
   const hurt = opts.hurt;
+  const body = hurt ? '#ffffff' : m.body, dark = hurt ? '#ffb0b0' : m.dark;
+  const P = (pts, col) => poly(c, pts, col);
   c.save();
   c.translate(cx, cy);
-  c.scale(u * (m.type === 'ape' || opts.front ? 1 : f), u);
-  const body = hurt ? '#ffffff' : m.body, dark = hurt ? '#ffb0b0' : m.dark;
+  c.scale(u, u);
+  c.lineJoin = 'round'; c.lineCap = 'round';
   if (m.type === 'ape') {
-    // pelo
+    const skin = hurt ? '#ffd8d0' : '#c9956a', skinD = '#9a6a44';
+    // capucha de pelo (cabeza en punta, como un gorila)
     c.fillStyle = dark;
-    c.beginPath(); c.ellipse(0, -2, 27, 27, 0, 0, Math.PI * 2); c.fill();
-    for (let i = -3; i <= 3; i++) {
-      c.beginPath(); c.moveTo(i * 7 - 5, -22); c.lineTo(i * 8, -33 + Math.abs(i) * 2); c.lineTo(i * 7 + 5, -22); c.fill();
-    }
+    c.beginPath(); c.moveTo(-29, 22); c.quadraticCurveTo(-33, -14, -14, -30);
+    c.quadraticCurveTo(0, -40, 14, -30); c.quadraticCurveTo(33, -14, 29, 22); c.quadraticCurveTo(0, 36, -29, 22); c.closePath(); c.fill();
     c.fillStyle = body;
-    c.beginPath(); c.ellipse(0, -3, 24, 24, 0, 0, Math.PI * 2); c.fill();
-    // orejas
-    circle(c, -24, 0, 6, dark); circle(c, 24, 0, 6, dark);
-    circle(c, -24, 0, 3, '#c8956a'); circle(c, 24, 0, 3, '#c8956a');
-    // máscara de la cara (piel clara) y morro
-    c.fillStyle = hurt ? '#ffd0d0' : '#c8956a';
-    c.beginPath(); c.ellipse(0, 2, 18, 19, 0, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.ellipse(0, 10 + o * 3, 15, 10 + o * 4, 0, 0, Math.PI * 2); c.fill();
-    // ceja prominente
-    c.fillStyle = dark;
-    c.beginPath(); c.moveTo(-19, -9); c.quadraticCurveTo(0, -18, 19, -9); c.quadraticCurveTo(0, -5, -19, -9); c.fill();
-    eyeGlow(c, -7, -4, 3.2); eyeGlow(c, 7, -4, 3.2);
-    // nariz
-    c.fillStyle = '#5a3420';
-    c.beginPath(); c.ellipse(-3, 4, 2.4, 1.8, 0.3, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.ellipse(3, 4, 2.4, 1.8, -0.3, 0, Math.PI * 2); c.fill();
-    // boca abierta con colmillos
-    c.fillStyle = '#6a0e0e';
-    c.beginPath(); c.ellipse(0, 12 + o * 3, 11, 2.5 + o * 6, 0, 0, Math.PI * 2); c.fill();
-    fangs(c, -10, 10, 9 + o * 0.5, 3.5, 1, 5);
-    fangs(c, -9, 9, 15 + o * 6.5, 3, -1, 5);
+    c.beginPath(); c.moveTo(-25, 20); c.quadraticCurveTo(-28, -12, -12, -26);
+    c.quadraticCurveTo(0, -34, 12, -26); c.quadraticCurveTo(28, -12, 25, 20); c.quadraticCurveTo(0, 32, -25, 20); c.closePath(); c.fill();
+    c.strokeStyle = 'rgba(255,220,180,.25)'; c.lineWidth = 1;
+    for (let i = -3; i <= 3; i++) { c.beginPath(); c.moveTo(i * 6, -30 + Math.abs(i) * 2); c.lineTo(i * 7.5, -20 + Math.abs(i) * 3); c.stroke(); }
+    // cara
+    c.fillStyle = skin;
+    c.beginPath(); c.moveTo(-17, -10); c.quadraticCurveTo(-21, 14, -12, 24); c.quadraticCurveTo(0, 30, 12, 24);
+    c.quadraticCurveTo(21, 14, 17, -10); c.quadraticCurveTo(0, -16, -17, -10); c.fill();
+    // ceño (frente prominente en V)
+    c.fillStyle = skinD;
+    c.beginPath(); c.moveTo(-19, -11); c.quadraticCurveTo(-10, -15, 0, -6); c.quadraticCurveTo(10, -15, 19, -11);
+    c.lineTo(17, -6); c.quadraticCurveTo(10, -9, 0, -2); c.quadraticCurveTo(-10, -9, -17, -6); c.closePath(); c.fill();
+    // ojos hundidos
+    c.fillStyle = '#2a1408';
+    c.beginPath(); c.ellipse(-8, -3, 5.5, 3.2, 0.15, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.ellipse(8, -3, 5.5, 3.2, -0.15, 0, Math.PI * 2); c.fill();
+    eyeGlow(c, -8, -3, 2.6); eyeGlow(c, 8, -3, 2.6);
+    // nariz ancha y chata
+    c.fillStyle = skinD;
+    c.beginPath(); c.ellipse(0, 6, 8.5, 5, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#2a1408';
+    c.beginPath(); c.ellipse(-3.4, 7, 2.6, 1.8, 0.4, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.ellipse(3.4, 7, 2.6, 1.8, -0.4, 0, Math.PI * 2); c.fill();
+    // arrugas
+    c.strokeStyle = skinD; c.lineWidth = 1.2;
+    c.beginPath(); c.moveTo(-14, 4); c.quadraticCurveTo(-15, 12, -11, 16); c.moveTo(14, 4); c.quadraticCurveTo(15, 12, 11, 16); c.stroke();
+    // mueca con colmillos
+    const mh = 5 + o * 7;
+    c.fillStyle = '#5a0a0a';
+    c.beginPath(); c.moveTo(-12, 14); c.quadraticCurveTo(0, 11, 12, 14); c.lineTo(10, 14 + mh); c.quadraticCurveTo(0, 16 + mh, -10, 14 + mh); c.closePath(); c.fill();
+    c.fillStyle = '#d42a2a'; c.beginPath(); c.ellipse(0, 15 + mh * 0.8, 5, 2, 0, 0, Math.PI * 2); c.fill();
+    fangs(c, -11, 11, 13.5, 3, 1, 6);
+    fangs(c, -10, 10, 14 + mh, 2.6, -1, 6);
   } else if (m.type === 'lizard') {
-    // perfil mirando a +x (se refleja según f)
-    const jaw = o * 0.45;
-    // cresta / cuerno amarillo
-    c.fillStyle = '#f0c020';
-    c.beginPath(); c.moveTo(-6, -18); c.lineTo(-2, -34); c.lineTo(4, -17); c.fill();
-    c.fillStyle = '#e07020';
-    c.beginPath(); c.moveTo(-16, -12); c.lineTo(-20, -24); c.lineTo(-8, -15); c.fill();
-    // mandíbula inferior (gira al abrir)
-    c.save(); c.translate(-6, 6); c.rotate(jaw);
-    c.fillStyle = hurt ? '#ffe0a0' : '#e8c840';
-    c.beginPath(); c.moveTo(0, -2); c.lineTo(32, 0); c.quadraticCurveTo(30, 9, 18, 10); c.lineTo(-4, 9); c.closePath(); c.fill();
-    c.fillStyle = '#7a1010'; c.fillRect(2, -3, 28, 3);
-    fangs(c, 4, 30, -2, 3, -1, 6);
-    c.restore();
-    // cráneo + hocico superior
+    const belly = hurt ? '#fff0b0' : '#7ac04a';
+    // cuello/hombros
+    c.fillStyle = dark;
+    c.beginPath(); c.ellipse(0, 24, 30, 12, 0, Math.PI, 0); c.fill();
+    // cuerno amarillo
+    P([[-4, -22], [1, -38], [5, -21]], '#f0c020');
+    P([[-1, -24], [1, -36], [2, -24]], '#ffe070');
+    // cráneo ancho
     c.fillStyle = body;
-    c.beginPath(); c.ellipse(-4, -4, 19, 17, 0, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.moveTo(0, -14); c.quadraticCurveTo(26, -14, 34, -4); c.quadraticCurveTo(36, 4, 30, 6); c.lineTo(-6, 6); c.closePath(); c.fill();
-    // sombra y escamas
+    c.beginPath(); c.moveTo(-23, 6); c.quadraticCurveTo(-26, -20, 0, -24); c.quadraticCurveTo(26, -20, 23, 6); c.closePath(); c.fill();
+    // mandíbula inferior (baja al abrir)
+    const jy = 8 + o * 8;
+    c.fillStyle = body;
+    c.beginPath(); c.moveTo(-21, 4); c.quadraticCurveTo(-20, jy + 14, 0, jy + 16); c.quadraticCurveTo(20, jy + 14, 21, 4); c.closePath(); c.fill();
+    c.fillStyle = belly;
+    c.beginPath(); c.ellipse(0, jy + 10, 11, 5, 0, 0, Math.PI * 2); c.fill();
+    // boca abierta
+    c.fillStyle = '#4a0606';
+    c.beginPath(); c.moveTo(-18, 4); c.quadraticCurveTo(0, 2, 18, 4); c.quadraticCurveTo(14, jy + 8, 0, jy + 10); c.quadraticCurveTo(-14, jy + 8, -18, 4); c.fill();
+    c.fillStyle = '#e03a3a'; c.beginPath(); c.ellipse(0, jy + 5, 7, 3, 0, 0, Math.PI * 2); c.fill();
+    // colmillos grandes + dientes
+    fangs(c, -16, 16, 4, 2.5, 1, 8);
+    P([[-11, 3], [-8.5, 15 + o * 4], [-6, 3]], '#fbf6e8');
+    P([[6, 3], [8.5, 15 + o * 4], [11, 3]], '#fbf6e8');
+    fangs(c, -12, 12, jy + 8, 2.4, -1, 6);
+    // hocico y fosas
     c.fillStyle = dark;
-    for (let i = 0; i < 6; i++) circle(c, -12 + i * 6, -10 + (i % 2) * 4, 1.3, dark);
-    c.beginPath(); c.moveTo(-6, 6); c.lineTo(30, 6); c.lineTo(28, 3); c.lineTo(-6, 3); c.fill();
-    // dientes superiores
-    fangs(c, 4, 31, 6, 3.2, 1, 6);
-    // ojo con ceja
-    eyeGlow(c, 6, -8, 3.4);
+    circle(c, -4, -1, 1.6, dark); circle(c, 4, -1, 1.6, dark);
+    // cejas en V muy marcadas
     c.fillStyle = dark;
-    c.beginPath(); c.moveTo(-1, -15); c.lineTo(14, -10); c.lineTo(12, -13); c.lineTo(0, -17); c.fill();
-    circle(c, 29, -6, 1.4, '#102a10'); // fosa nasal
+    P([[-20, -14], [-2, -9], [-3, -6], [-19, -10]], dark);
+    P([[20, -14], [2, -9], [3, -6], [19, -10]], dark);
+    eyeGlow(c, -10, -7, 3); eyeGlow(c, 10, -7, 3);
+    // escamas
+    for (let i = 0; i < 9; i++) circle(c, -16 + i * 4, -18 + (i % 2) * 2 + Math.abs(i - 4) * 1.2, 1.1, dark);
   } else { // wolf
-    // orejas
-    for (const [ex, tx] of [[-10, -16], [8, 12]]) {
-      c.fillStyle = dark;
-      c.beginPath(); c.moveTo(ex - 8, -12); c.lineTo(tx, -40); c.lineTo(ex + 8, -16); c.fill();
-      c.fillStyle = '#c9a070';
-      c.beginPath(); c.moveTo(ex - 4, -15); c.lineTo(tx, -33); c.lineTo(ex + 4, -17); c.fill();
+    const tan = hurt ? '#ffe8d0' : '#c9a070';
+    // orejas altas
+    for (const s of [-1, 1]) {
+      P([[s * 5, -16], [s * 21, -44], [s * 23, -10]], dark);
+      P([[s * 9, -17], [s * 20, -38], [s * 20, -14]], tan);
     }
+    // mechón de pelo entre las orejas
+    P([[-7, -18], [-3, -32], [0, -20], [3, -34], [7, -18]], dark);
     // cabeza con pelo erizado en las mejillas
     c.fillStyle = body;
-    c.beginPath(); c.ellipse(-2, -4, 20, 18, 0, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.ellipse(0, -2, 22, 20, 0, 0, Math.PI * 2); c.fill();
     for (const s of [-1, 1]) {
-      c.beginPath(); c.moveTo(-2 + s * 16, -6); c.lineTo(-2 + s * 26, 4); c.lineTo(-2 + s * 14, 6); c.fill();
-      c.beginPath(); c.moveTo(-2 + s * 14, 2); c.lineTo(-2 + s * 22, 12); c.lineTo(-2 + s * 10, 10); c.fill();
+      P([[s * 18, -6], [s * 30, 2], [s * 19, 6]], body);
+      P([[s * 18, 4], [s * 28, 14], [s * 14, 14]], body);
     }
-    // mandíbula inferior
-    c.fillStyle = hurt ? '#ffe0c0' : '#c9a070';
-    c.beginPath(); c.moveTo(0, 8); c.lineTo(22, 8 + o * 6); c.quadraticCurveTo(18, 16 + o * 8, 4, 16 + o * 4); c.closePath(); c.fill();
-    c.fillStyle = '#7a1010';
-    c.beginPath(); c.moveTo(2, 8); c.lineTo(22, 8 + o * 6); c.lineTo(20, 6); c.closePath(); c.fill();
-    fangs(c, 6, 20, 8 + o * 4, 3, -1, 4);
-    // hocico
-    c.fillStyle = hurt ? '#ffe0c0' : '#c9a070';
-    c.beginPath(); c.moveTo(-4, -4); c.quadraticCurveTo(18, -6, 26, 0); c.quadraticCurveTo(26, 7, 20, 8); c.lineTo(0, 8); c.closePath(); c.fill();
-    fangs(c, 4, 22, 7, 3.5, 1, 4);
-    c.fillStyle = '#111'; c.beginPath(); c.ellipse(25, -1, 3.5, 2.6, 0, 0, Math.PI * 2); c.fill();
+    // máscara clara alrededor de los ojos y el hocico
+    c.fillStyle = tan;
+    c.beginPath(); c.moveTo(-16, -6); c.quadraticCurveTo(0, -14, 16, -6); c.quadraticCurveTo(14, 8, 11, 18);
+    c.quadraticCurveTo(0, 26, -11, 18); c.quadraticCurveTo(-14, 8, -16, -6); c.fill();
     // ojos y cejas fruncidas
-    eyeGlow(c, -6, -8, 3); eyeGlow(c, 7, -9, 3);
-    c.strokeStyle = dark; c.lineWidth = 2.2; c.lineCap = 'round';
-    c.beginPath(); c.moveTo(-12, -14); c.lineTo(-2, -11); c.moveTo(13, -15); c.lineTo(3, -12); c.stroke();
+    eyeGlow(c, -8, -4, 2.8); eyeGlow(c, 8, -4, 2.8);
+    P([[-16, -11], [-2, -7], [-3, -4], [-15, -7]], dark);
+    P([[16, -11], [2, -7], [3, -4], [15, -7]], dark);
+    // hocico y nariz
+    c.fillStyle = shade(tan, 0.92); c.beginPath(); c.ellipse(0, 7, 10, 8, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = '#111'; c.beginPath(); c.ellipse(0, 3, 5, 3.4, 0, 0, Math.PI * 2); c.fill();
+    circle(c, -1.5, 2, 1, 'rgba(255,255,255,.5)');
+    // boca rugiendo
+    const mh = 4 + o * 7;
+    c.fillStyle = '#4a0606';
+    c.beginPath(); c.moveTo(-10, 11); c.quadraticCurveTo(0, 9, 10, 11); c.quadraticCurveTo(8, 12 + mh, 0, 13 + mh); c.quadraticCurveTo(-8, 12 + mh, -10, 11); c.fill();
+    c.fillStyle = '#e03a3a'; c.beginPath(); c.ellipse(0, 11 + mh * 0.8, 4, 2, 0, 0, Math.PI * 2); c.fill();
+    P([[-8, 10.5], [-6.5, 17 + o * 3], [-5, 10.5]], '#fbf6e8');
+    P([[5, 10.5], [6.5, 17 + o * 3], [8, 10.5]], '#fbf6e8');
+    fangs(c, -6, 6, 12 + mh, 2.2, -1, 4);
   }
   c.restore();
 }
