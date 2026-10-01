@@ -135,7 +135,7 @@ icons/            iconos de la app
 ```
 
 ## 🍩 mr_donut
-Un juego de **mr_d0nuT**: intro con el emblema de mr_donut (el mismo de *mr_donut Battle Chess*) y el distintivo
+Un juego de **mr_d0nuT**: intro y menú con el logo **mr_donut RAMPAGE**, y el distintivo
 flotante con los datos de contacto.
 
 ## ⚖️ Aviso
