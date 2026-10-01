@@ -63,6 +63,10 @@ html, body {
 }
 #camMsg:empty { display: none; }
 
+.face-status { font-size: 13px; padding: 4px 10px; border-radius: 20px; background: rgba(255, 255, 255, .1); }
+.face-status.ok { background: rgba(40, 180, 80, .35); }
+.face-status.warn { background: rgba(220, 150, 0, .35); }
+#shot { background: repeating-conic-gradient(#2a2a2a 0 25%, #1a1a1a 0 50%) 0 0 / 24px 24px; }
 .btn-row { display: flex; gap: 10px; }
 .btn {
   font: inherit; font-weight: bold; font-size: 17px; cursor: pointer;

@@ -6,7 +6,8 @@ const Setup = (() => {
   const flashEl = $('flash'), camMsg = $('camMsg'), pick = $('monsterPick'), hint = $('setupHint');
   const preview = $('monsterPreview'), pctx = preview.getContext('2d');
   const btnPhoto = $('btnPhoto'), btnRetake = $('btnRetake'), btnOk = $('btnOk');
-  const btnNoPhoto = $('btnNoPhoto'), fileInput = $('fileInput');
+  const btnNoPhoto = $('btnNoPhoto'), fileInput = $('fileInput'), faceStatus = $('faceStatus');
+  let liveDetected = false;
 
   let stream = null, camOK = false, active = false;
   let idx = 0, total = 1, data = null, onDone = null;
@@ -45,6 +46,7 @@ const Setup = (() => {
     total = numPlayers; data = setupData; idx = 0; onDone = cb; active = true;
     data.forEach(d => { if (d.faceSource === 'none') d.faceSource = null; });
     root.classList.remove('hidden');
+    FaceCut.load();
     startCamera();
     renderPlayer();
   }
@@ -80,10 +82,11 @@ const Setup = (() => {
     const d = data[idx];
     const hasShot = !!d.face && d.faceSource !== 'none';
     shot.style.display = hasShot ? 'block' : 'none';
+    root.querySelector('.oval').style.display = hasShot ? 'none' : '';
     if (hasShot) {
       const s = shot.getContext('2d');
-      s.fillStyle = '#111'; s.fillRect(0, 0, shot.width, shot.height);
-      s.drawImage(d.face, 40, 40, 240, 240);
+      s.clearRect(0, 0, shot.width, shot.height);
+      s.drawImage(d.face, 20, 20, 280, 280);
     }
     btnPhoto.disabled = !camOK || counting;
     btnRetake.disabled = !hasShot;
@@ -101,18 +104,34 @@ const Setup = (() => {
       if (n > 0) { countdownEl.textContent = n; Sound.play('beep'); return; }
       clearInterval(iv);
       countdownEl.textContent = '';
-      const face = faceFromVideo(video);
-      counting = false;
-      if (!face || !active) { refresh(); return; }
-      data[idx].face = face; data[idx].faceSource = 'camera';
-      Sound.play('shutter');
-      flashEl.classList.add('on');
-      setTimeout(() => flashEl.classList.remove('on'), 60);
-      refresh();
+      captureWithRetry(8, performance.now() + 8000);
     }, 700);
   }
 
+  // Intenta varias veces detectar la cara (por si justo parpadeas o te mueves).
+  function captureWithRetry(tries, deadline) {
+    if (!active) { counting = false; return; }
+    if (FaceCut.status === 'loading' && performance.now() < deadline) {
+      countdownEl.textContent = '⏳';
+      setTimeout(() => captureWithRetry(tries, deadline), 200);
+      return;
+    }
+    countdownEl.textContent = '';
+    const strict = FaceCut.status === 'ready' && tries > 0;
+    const r = FaceCut.fromVideo(video, !strict);
+    if (!r) { setTimeout(() => captureWithRetry(tries - 1, deadline), 60); return; }
+    counting = false;
+    data[idx].face = r.face; data[idx].faceSource = 'camera';
+    Sound.play('shutter');
+    flashEl.classList.add('on');
+    setTimeout(() => flashEl.classList.remove('on'), 60);
+    if (!r.detected && FaceCut.status === 'ready') camMsg.textContent = 'No he encontrado tu cara 🤔 — pulsa ↺ Repetir y mira a la cámara.';
+    else camMsg.textContent = '';
+    refresh();
+  }
+
   function retake() {
+    camMsg.textContent = '';
     data[idx].face = null; data[idx].faceSource = null;
     refresh();
   }
@@ -143,8 +162,11 @@ const Setup = (() => {
     const file = fileInput.files && fileInput.files[0];
     if (!file) return;
     const img = new Image();
-    img.onload = () => {
-      data[idx].face = faceFromImage(img); data[idx].faceSource = 'file';
+    img.onload = async () => {
+      if (FaceCut.status === 'loading') await FaceCut.load();
+      const r = FaceCut.fromImage(img, false);
+      data[idx].face = r ? r.face : faceFromImage(img); data[idx].faceSource = 'file';
+      camMsg.textContent = r ? '' : 'No he encontrado una cara en la imagen; uso el centro de la foto.';
       URL.revokeObjectURL(img.src);
       Sound.play('shutter');
       refresh();
@@ -169,6 +191,20 @@ const Setup = (() => {
     else if (Input.pressed(i, 'right')) changeMonster(1);
     else if (Input.key('Escape')) { close(); onDone && onDone(true); return; }
     drawPreview(dt);
+    updateStatus();
+  }
+
+  function updateStatus() {
+    const st = FaceCut.status;
+    let txt, cls = '';
+    if (st === 'loading' || st === 'idle') txt = '⏳ Cargando el recorte automático de cara…';
+    else if (st === 'failed') { txt = '⚠️ Recorte automático no disponible (sin conexión): se usa un óvalo'; cls = 'warn'; }
+    else if (data[idx].face) { txt = '✂️ Cara recortada y fondo eliminado'; cls = 'ok'; }
+    else if (!camOK) txt = '✂️ Recorte automático de cara listo';
+    else if (liveDetected) { txt = '✅ ¡Cara detectada! Haz la foto cuando quieras'; cls = 'ok'; }
+    else { txt = '👀 Busco tu cara… mira a la cámara'; cls = 'warn'; }
+    if (faceStatus.textContent !== txt) faceStatus.textContent = txt;
+    faceStatus.className = 'face-status ' + cls;
   }
 
   // Vista previa del monstruo con la cara (en directo desde la cámara si aún no hay foto).
@@ -179,7 +215,11 @@ const Setup = (() => {
     let face = d.face;
     if (!face && camOK && d.faceSource !== 'none') {
       liveT -= dt;
-      if (liveT <= 0 || !liveFace) { liveFace = faceFromVideo(video) || liveFace; liveT = 0.08; }
+      if (liveT <= 0 || !liveFace) {
+        const r = FaceCut.fromVideo(video, true);
+        if (r) { liveFace = r.face; liveDetected = r.detected; }
+        liveT = 0.1;
+      }
       face = liveFace;
     }
     if (!face) face = m._defaultFace || (m._defaultFace = defaultFace(m));

@@ -163,34 +163,44 @@ function drawMonster(c, s, time) {
   }
 
   if (s.state === 'climb') {
-    // De frente, agarrado a la fachada
+    // De perfil, agarrado al lateral del edificio (el edificio queda delante: +x tras escalar por f)
     const a = Math.sin(s.anim);
-    if (m.type !== 'ape') limb(c, 0, -26, 18 * -s.f, 4, 9, dark); // cola
-    limb(c, -9, -26, -18, -4 + a * 6, 12, body);
-    limb(c, 9, -26, 18, -4 - a * 6, 12, body);
-    circle(c, -19, -2 + a * 6, 7, dark);
-    circle(c, 19, -2 - a * 6, 7, dark);
+    c.save();
+    c.scale(s.f, 1);
+    if (m.type !== 'ape') limb(c, -14, -30, -22 + a * 3, -4, 9, dark); // cola colgando
+    // piernas apoyadas en la pared
+    limb(c, 0, -28, 16, -18 - a * 5, 12, dark);
+    limb(c, 16, -18 - a * 5, 13, -2 - a * 5, 11, dark);
+    limb(c, 2, -26, 17, -14 + a * 5, 13, body);
+    limb(c, 17, -14 + a * 5, 15, 0 + a * 5, 12, body);
+    circle(c, 18, 0 + a * 5, 6, dark);
+    // brazo de atrás agarrado arriba
+    limb(c, 4, -60, 17, -92 - a * 8, 11, dark);
+    circle(c, 18, -94 - a * 8, 7, dark);
+    // torso
     c.fillStyle = body;
-    c.beginPath(); c.ellipse(0, -44, 23, 25, 0, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.ellipse(0, -46, 20, 26, 0, 0, Math.PI * 2); c.fill();
     c.fillStyle = belly;
-    c.beginPath(); c.ellipse(0, -40, 13, 16, 0, 0, Math.PI * 2); c.fill();
-    // brazos
-    if (punching && s.punchDir === 'side') {
-      limb(c, -16 * s.f, -58, -22 * s.f, -92 - a * 6, 11, body);
-      circle(c, -22 * s.f, -94 - a * 6, 8, dark);
-      limb(c, 16 * s.f, -56, 42 * s.f, -54, 12, body);
-      circle(c, 44 * s.f, -54, 10, dark);
-    } else if (punching && s.punchDir === 'up') {
-      limb(c, -16, -58, -26, -92, 11, body); circle(c, -26, -94, 8, dark);
-      limb(c, 16, -58, 10, -118, 12, body); circle(c, 10, -120, 10, dark);
+    c.beginPath(); c.ellipse(7, -42, 10, 17, 0, 0, Math.PI * 2); c.fill();
+    if (m.type === 'lizard') {
+      c.fillStyle = '#f06a2a';
+      for (let i = 0; i < 3; i++) { c.beginPath(); c.moveTo(-18, -62 + i * 12); c.lineTo(-27, -56 + i * 12); c.lineTo(-19, -52 + i * 12); c.fill(); }
+    }
+    // brazo delantero: golpe recto, diagonal abajo o diagonal arriba
+    if (punching) {
+      const k = 1 - Math.abs(s.punchT / 0.2 - 0.5) * 2;
+      let hx = 34 + k * 8, hy = -56;
+      if (s.punchDir === 'down') { hx = 30 + k * 6; hy = -24 + k * 4; }
+      else if (s.punchDir === 'up') { hx = 30 + k * 6; hy = -96 - k * 6; }
+      limb(c, 6, -58, hx, hy, 12, body);
+      circle(c, hx + 2, hy, 10, dark);
     } else {
-      limb(c, -16, -58, -26, -92 + a * 8, 11, body);
-      limb(c, 16, -58, 26, -92 - a * 8, 11, body);
-      circle(c, -26, -94 + a * 8, 8, dark);
-      circle(c, 26, -94 - a * 8, 8, dark);
+      limb(c, 6, -58, 18, -84 + a * 8, 12, body);
+      circle(c, 19, -86 + a * 8, 8, dark);
     }
     c.restore();
-    drawHead(c, s.x, s.y - 76, 23, m, s.face, { hurt, eat: s.eatT, time });
+    c.restore();
+    drawHead(c, s.x - s.f * 2, s.y - 78, 23, m, s.face, { hurt, eat: s.eatT, time, tilt: s.f * 0.08 });
     return;
   }
 

@@ -15,12 +15,6 @@ const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
 const choice = arr => arr[Math.floor(Math.random() * arr.length)];
 const overlap = (a, b) => a.x < b.x + b.w && a.x + a.w > b.x && a.y < b.y + b.h && a.y + a.h > b.y;
 
-const CITIES = ['BARCELONA', 'MADRID', 'VALENCIA', 'SEVILLA', 'BILBAO', 'ZARAGOZA', 'NUEVA YORK',
-  'TOKIO', 'PARÍS', 'LONDRES', 'CHICAGO', 'CIUDAD DE MÉXICO', 'BUENOS AIRES', 'ROMA', 'BERLÍN'];
-const BUILDING_COLORS = [
-  ['#b5653a', '#7d3f1f'], ['#8d939e', '#555b66'], ['#c9b28f', '#8c7656'], ['#6f8fa8', '#3f5b72'],
-  ['#a65a4a', '#6b3328'], ['#9a86a8', '#5f4d6c'], ['#b9a050', '#7a6526'], ['#6d9a83', '#3e6551'],
-];
 const SKIES = [
   ['#5ec6ff', '#bfe9ff', false], ['#ff9a5a', '#ffd9a0', false], ['#2b2a6b', '#d0607a', false],
   ['#05061a', '#1d2a5a', true], ['#7fd0ff', '#e8f7ff', false], ['#1b0f3a', '#5a2a6a', true],
@@ -45,36 +39,40 @@ const G = {
 // ---------------------------------------------------------------------------
 function makeCity(level) {
   G.buildings = []; G.rubble = [];
-  const n = level < 3 ? 3 : 4;
-  let specs, tries = 0;
-  do {
-    specs = [];
-    for (let i = 0; i < n; i++) {
-      specs.push({ cols: randi(3, n === 3 ? 5 : 4), rows: randi(5, Math.min(10, 6 + level)) });
-    }
-    tries++;
-  } while (specs.reduce((s, b) => s + b.cols * CELL, 0) > W - 120 - (n - 1) * 70 && tries < 50);
-  const totalW = specs.reduce((s, b) => s + b.cols * CELL, 0);
+  const city = CITY_DATA[(level - 1) % CITY_DATA.length];
+  // los 4 edificios emblemáticos de la ciudad, en orden aleatorio
+  const ids = city.lm.slice().sort(() => Math.random() - 0.5);
+  const n = ids.length, minGap = 60;
+  const specs = ids.map(id => {
+    const st = LANDMARKS[id];
+    // que quepa la silueta de arriba (cúpulas, agujas…) en pantalla
+    const maxRows = Math.max(4, Math.floor((GROUND - 56 - (st.crownH || 100) * 0.8) / CELL));
+    return { id, st, cols: randi(st.cols[0], st.cols[1]), rows: Math.min(10, maxRows, randi(st.rows[0], st.rows[1])) };
+  });
+  const maxCells = Math.floor((W - 120 - (n - 1) * minGap) / CELL);
+  while (specs.reduce((t, sp) => t + sp.cols, 0) > maxCells) {
+    const big = specs.reduce((m, sp) => (sp.cols > m.cols ? sp : m));
+    big.cols--;
+  }
+  const totalW = specs.reduce((t, sp) => t + sp.cols * CELL, 0);
   const gap = (W - 120 - totalW) / (n - 1);
   let x = 60;
-  specs.forEach((s, i) => {
-    const [color, trim] = BUILDING_COLORS[(level * 3 + i) % BUILDING_COLORS.length];
+  specs.forEach(sp => {
     const b = {
-      x: Math.round(x), w: s.cols * CELL, h: s.rows * CELL, cols: s.cols, rows: s.rows,
-      y: GROUND - s.rows * CELL, color, trim, sink: 0, collapsing: false, gone: false,
-      broken: 0, total: s.cols * s.rows, lastHit: null, shakeT: 0,
-      roofDeco: choice(['tank', 'antenna', 'sign', 'none']),
+      x: Math.round(x), w: sp.cols * CELL, h: sp.rows * CELL, cols: sp.cols, rows: sp.rows,
+      y: GROUND - sp.rows * CELL, style: sp.st, name: sp.st.name, color: sp.st.color, trim: sp.st.trim,
+      sink: 0, collapsing: false, gone: false, broken: 0, total: sp.cols * sp.rows, lastHit: null, shakeT: 0,
       cells: [],
     };
-    for (let r = 0; r < s.rows; r++) {
+    for (let r = 0; r < sp.rows; r++) {
       const row = [];
-      for (let c = 0; c < s.cols; c++) {
-        row.push({ hp: 2, content: null, contentT: 0, fireT: 0, light: Math.random() < 0.55 });
+      for (let c = 0; c < sp.cols; c++) {
+        row.push({ hp: 2, content: null, contentT: 0, fireT: 0, light: Math.random() < 0.55, tint: randi(0, 9) });
       }
       b.cells.push(row);
     }
     G.buildings.push(b);
-    x += s.cols * CELL + gap;
+    x += sp.cols * CELL + gap;
   });
   // skyline lejano decorativo
   G.skyline = [];
@@ -87,9 +85,32 @@ function makeCity(level) {
 
 const roofY = b => b.y + b.sink;
 
-function buildingAtX(x) {
-  return G.buildings.find(b => !b.collapsing && !b.gone && x > b.x + 4 && x < b.x + b.w - 4);
+// Como en el Rampage original, los monstruos trepan por los LATERALES de los edificios.
+// Devuelve { b, f } con f = hacia dónde mira el monstruo (hacia el edificio).
+function buildingEdgeNear(x) {
+  for (const b of G.buildings) {
+    if (b.collapsing || b.gone) continue;
+    if (x > b.x - 40 && x < b.x + 22) return { b, f: 1 };
+    if (x > b.x + b.w - 22 && x < b.x + b.w + 40) return { b, f: -1 };
+  }
+  return null;
 }
+const climbX = (b, f) => (f > 0 ? b.x - 14 : b.x + b.w + 14);
+
+// Golpe a la pared desde un lateral: si la ventana ya está rota, el puño entra
+// por el agujero y alcanza la siguiente (hasta 3 de profundidad).
+function punchWall(b, row, f, p) {
+  if (row < 0 || row >= b.rows) return false;
+  const start = f > 0 ? 0 : b.cols - 1;
+  for (let d = 0; d < 3; d++) {
+    const c = start + f * d;
+    if (c < 0 || c >= b.cols) break;
+    const cell = b.cells[row][c];
+    if (cell.hp > 0 || cell.content) return damageCell({ b, r: row, c, cell }, p);
+  }
+  return false;
+}
+const rowAt = (b, y) => Math.floor((y - roofY(b)) / CELL);
 
 function cellAt(px, py) {
   for (const b of G.buildings) {
@@ -111,7 +132,7 @@ function damageCell(hit, p) {
   b.lastHit = p; b.shakeT = 0.15;
   if (cell.content) {
     handleContent(cell, p, pos);
-    if (cell.hp > 0) { cell.hp = 0; registerBreak(b); }
+    if (cell.hp > 0) { cell.hp = 0; registerBreak(b, r); }
     return true;
   }
   if (cell.hp <= 0) return false;
@@ -120,7 +141,7 @@ function damageCell(hit, p) {
     Sound.play('glass');
     debris(pos.x, pos.y, 10, ['#9fd8ff', '#ffffff', b.color, b.trim]);
     addScore(p, 50, pos.x, pos.y);
-    registerBreak(b);
+    registerBreak(b, r);
   } else {
     Sound.play('punch');
     debris(pos.x, pos.y, 4, [b.color, b.trim]);
@@ -129,16 +150,27 @@ function damageCell(hit, p) {
   return true;
 }
 
-function registerBreak(b) {
+// Daño estructural: si una planta se queda casi sin paredes, el edificio se viene abajo.
+// (Por eso, golpeando bien desde los lados y en diagonal, se derriba muy rápido.)
+const rowLimit = b => Math.floor((b.cols - 1) / 3);
+function rowIntact(b, r) { return b.cells[r].filter(c => c.hp > 0).length; }
+function registerBreak(b, r) {
   b.broken++;
-  if (!b.collapsing && b.broken >= Math.ceil(b.total * 0.5)) collapse(b);
+  if (b.collapsing) return;
+  const intact = rowIntact(b, r);
+  if (intact <= rowLimit(b) || b.broken >= Math.ceil(b.total * 0.55)) { collapse(b); return; }
+  if (intact === rowLimit(b) + 1 && !b.creaking) {
+    b.creaking = true;
+    Sound.play('crack');
+    floater(b.x + b.w / 2, roofY(b) + r * CELL, '¡CRAAACK!', '#ffd27a');
+  }
 }
 
 function collapse(b) {
   b.collapsing = true;
   Sound.play('collapse');
   G.shake = Math.max(G.shake, 10);
-  if (b.lastHit) addScore(b.lastHit, 1000, b.x + b.w / 2, roofY(b) - 20, '¡DERRIBADO! +1000');
+  if (b.lastHit) addScore(b.lastHit, 1000, b.x + b.w / 2, roofY(b) - 20, '¡' + b.name.toUpperCase() + ' AL SUELO! +1000');
   for (const p of G.players) {
     if (p.building === b && (p.state === 'climb' || p.state === 'ground')) {
       p.state = 'air'; p.building = null; p.vy = -150;
@@ -231,7 +263,7 @@ function makePlayer(i) {
     i, m, face: s.face || m._defaultFace || (m._defaultFace = defaultFace(m)),
     color: PLAYER_COLORS[i],
     x: i === 0 ? 150 : W - 150, y: -60, vx: 0, vy: 0, f: i === 0 ? 1 : -1,
-    state: 'air', building: null, health: MAX_HP, lives: 3, score: 0,
+    state: 'air', building: null, side: 1, health: MAX_HP, lives: 3, score: 0,
     punchT: 0, punchCD: 0, punchDir: 'side', hurtT: 0, invT: 1.5, eatT: 0, anim: 0,
     deadT: 0, out: false, shownScore: 0,
   };
@@ -308,15 +340,17 @@ function updatePlayer(p, dt) {
         p.state = 'air'; p.vy = 0; p.building = null;
       } else {
         p.y = roofY(b);
+        // abajo junto al borde de la azotea: bajar por el lateral
         if (Input.pressed(i, 'down') && !Input.held(i, 'punch')) {
-          p.state = 'climb'; p.y = roofY(b) + 40; p.x = clamp(p.x, b.x + 12, b.x + b.w - 12);
+          const f = p.x < b.x + 34 ? 1 : p.x > b.x + b.w - 34 ? -1 : 0;
+          if (f) startClimb(p, b, f, roofY(b) + 42);
         }
       }
     } else {
       p.y = GROUND;
       if (U && !Input.held(i, 'punch')) {
-        const b = buildingAtX(p.x);
-        if (b) { p.state = 'climb'; p.building = b; p.y = GROUND - 2; }
+        const e = buildingEdgeNear(p.x);
+        if (e) startClimb(p, e.b, e.f, GROUND - 2);
       }
     }
     if (jumpP && p.state !== 'climb') {
@@ -344,39 +378,50 @@ function updatePlayer(p, dt) {
     if (p.state === 'air' && p.y >= GROUND) {
       p.y = GROUND; p.state = 'ground'; p.building = null; p.vy = 0; land(p);
     }
-    // agarrarse a un edificio en el aire
-    if (p.state === 'air' && U && p.vy > -300) {
-      const b = buildingAtX(p.x);
-      if (b && p.y > roofY(b) + 44 && p.y < GROUND) { p.state = 'climb'; p.building = b; p.vy = 0; p.vx = 0; }
+    // agarrarse al lateral de un edificio en pleno salto
+    if (p.state === 'air' && U && p.vy > -320) {
+      const e = buildingEdgeNear(p.x);
+      if (e && p.y > roofY(e.b) + 44 && p.y < GROUND) startClimb(p, e.b, e.f, p.y);
     }
   } else if (p.state === 'climb') {
     const b = p.building;
     if (!b || b.collapsing || b.gone) { p.state = 'air'; p.building = null; p.vy = 0; }
     else {
+      // agarrado al lateral: arriba/abajo para trepar, hacia fuera para soltarse
+      p.f = p.side;
+      p.x = climbX(b, p.side);
       const my = (D ? 1 : 0) - (U ? 1 : 0);
-      if (mv) p.f = mv;
-      if (p.punchT <= 0) {
-        p.x += mv * CLIMBX * dt;
+      if (p.punchT <= 0 && !Input.held(i, 'punch')) {
         p.y += my * CLIMB * dt;
-        if (mv || my) p.anim += dt * 9;
+        if (my) p.anim += dt * 9;
       }
-      p.x = clamp(p.x, b.x + 12, b.x + b.w - 12);
       const ry = roofY(b);
       if (p.y >= GROUND) {
         p.y = GROUND;
-        if (D) { p.state = 'ground'; p.building = null; }
+        if (D && p.punchT <= 0) { p.state = 'ground'; p.building = null; p.x += -p.side * 6; }
       }
-      if (p.y < ry + 40) {
-        if (U) { p.state = 'ground'; p.y = ry; p.anim = 0; }
-        else p.y = ry + 40;
+      if (p.state === 'climb' && p.y < ry + 40) {
+        if (U && p.punchT <= 0) { // subir a la azotea
+          p.state = 'ground'; p.y = ry; p.anim = 0;
+          p.x = p.side > 0 ? b.x + 22 : b.x + b.w - 22;
+        } else p.y = ry + 40;
       }
-      if (jumpP) {
-        p.state = 'air'; p.vy = -JUMP * 0.75; p.vx = p.f * WALK; p.building = null; Sound.play('swing');
+      if (p.state === 'climb') {
+        if (jumpP) {
+          p.state = 'air'; p.vy = -JUMP * 0.7; p.vx = -p.side * WALK; p.f = -p.side; p.building = null; Sound.play('swing');
+        } else if (mv === -p.side && Input.pressed(i, mv > 0 ? 'right' : 'left')) {
+          p.state = 'air'; p.vy = 0; p.vx = -p.side * 90; p.f = -p.side; p.building = null;
+        }
       }
     }
   }
 
   if (punchP && p.punchCD <= 0) doPunch(p, U, D);
+}
+
+function startClimb(p, b, f, y) {
+  p.state = 'climb'; p.building = b; p.side = f; p.f = f;
+  p.x = climbX(b, f); p.y = Math.min(GROUND, y); p.vx = 0; p.vy = 0;
 }
 
 function land(p) {
@@ -388,24 +433,34 @@ function land(p) {
   }
 }
 
+// Golpes: lateral, arriba (diagonal arriba si trepas) y abajo (diagonal abajo si trepas,
+// golpe bajo en la calle, o hacia el suelo de la azotea).
 function doPunch(p, U, D) {
   p.punchT = 0.2; p.punchCD = 0.28;
+  const climbing = p.state === 'climb';
   let dir = 'side';
   if (U) dir = 'up';
-  else if (D && p.state === 'ground') dir = 'down';
+  else if (D && (climbing || p.state === 'ground')) dir = 'down';
   p.punchDir = dir;
   Sound.play('swing');
 
+  // punto de impacto (fx, fy) y caja para golpear enemigos/jugadores
   let fx, fy, box;
-  if (dir === 'up') {
-    fx = p.x + (p.state === 'climb' ? 10 : p.f * 8); fy = p.y - 118;
+  if (climbing) {
+    if (dir === 'up') { fx = p.x + p.f * 34; fy = p.y - 96; }
+    else if (dir === 'down') { fx = p.x + p.f * 34; fy = p.y - 22; }
+    else { fx = p.x + p.f * 40; fy = p.y - 56; }
+    box = { x: fx - 22, y: fy - 22, w: 44, h: 44 };
+    if (dir === 'up') box = { x: p.x - 40, y: p.y - 150, w: 80, h: 70 }; // helicópteros cercanos
+  } else if (dir === 'up') {
+    fx = p.x + p.f * 8; fy = p.y - 118;
     box = { x: fx - 22, y: fy - 26, w: 44, h: 44 };
   } else if (dir === 'down') {
-    fx = p.x + p.f * 16; fy = p.y + 12;
+    fx = p.x + p.f * 16; fy = p.building ? p.y + 10 : p.y - 16;
     box = { x: fx - 24, y: p.y - 30, w: 48, h: 44 };
   } else {
-    fx = p.x + p.f * (p.state === 'climb' ? 38 : 42); fy = p.y - 54;
-    box = { x: fx - 20, y: fy - 22, w: 40, h: p.state === 'climb' ? 44 : 76 };
+    fx = p.x + p.f * 42; fy = p.y - 54;
+    box = { x: fx - 20, y: fy - 22, w: 40, h: 76 };
   }
 
   let hit = false;
@@ -417,15 +472,26 @@ function doPunch(p, U, D) {
     if (o === p || !isAlive(o) || o.invT > 0) continue;
     if (overlap(box, monsterBox(o))) {
       hurt(o, 5);
-      o.x = clamp(o.x + p.f * 24, 24, W - 24);
+      if (o.state !== 'climb') o.x = clamp(o.x + p.f * 24, 24, W - 24);
       floater(o.x, o.y - 110, '¡TOMA!', p.color);
       Sound.play('punch');
       hit = true;
     }
   }
-  if (!hit || dir !== 'up') {
-    const c = cellAt(fx, dir === 'down' ? p.y + 6 : fy);
+
+  // edificio
+  if (climbing) {
+    if (punchWall(p.building, rowAt(p.building, fy), p.side, p)) hit = true;
+  } else if (p.building && dir === 'down') {
+    const c = cellAt(fx, fy); // golpe al suelo de la azotea
     if (c && damageCell(c, p)) hit = true;
+  } else if (!p.building && dir !== 'up') {
+    // en la calle, junto al lateral de un edificio
+    for (const b of G.buildings) {
+      if (b.collapsing || b.gone) continue;
+      const beside = p.f > 0 ? (p.x < b.x && fx >= b.x) : (p.x > b.x + b.w && fx <= b.x + b.w);
+      if (beside && punchWall(b, rowAt(b, fy), p.f, p)) { hit = true; break; }
+    }
   }
   if (hit) G.shake = Math.max(G.shake, 3);
 }
@@ -664,9 +730,9 @@ function startLevel() {
   G.enemies = []; G.bullets = []; G.particles = []; G.floaters = [];
   G.spawn = { soldier: 2.5, heli: 7, tank: 10, window: 1 };
   G.scene = 'play'; G.sceneT = 0; G.paused = false;
-  G.city = CITIES[(G.level - 1) % CITIES.length];
+  G.city = CITY_DATA[(G.level - 1) % CITY_DATA.length].name;
   G.sky = SKIES[(G.level - 1) % SKIES.length];
-  G.banner = { text: G.city, sub: 'DÍA ' + G.level + ' · ¡Destruye todos los edificios!', t: 3 };
+  G.banner = { text: G.city, sub: 'DÍA ' + G.level + ' · ¡Derriba ' + G.buildings.map(b => b.name).join(', ') + '!', t: 3.5 };
   G.players.forEach((p, i) => {
     if (p.out) return;
     if (p.state === 'dead') { p.lives = Math.max(p.lives, 1); }
@@ -792,37 +858,28 @@ function drawWindowContent(type, x, y, t) {
 
 function drawBuilding(b) {
   if (b.gone) return;
+  const st = b.style;
   ctx.save();
   let ox = 0;
   if (b.collapsing) ox = rand(-3, 3);
   else if (b.shakeT > 0) ox = rand(-1.5, 1.5);
+  else if (b.creaking) ox = Math.sin(G.time * 18) * 1.2;
   ctx.translate(ox, 0);
-  ctx.beginPath(); ctx.rect(b.x - 20, -50, b.w + 40, GROUND + 50); ctx.clip();
+  ctx.beginPath(); ctx.rect(b.x - 70, -50, b.w + 140, GROUND + 50); ctx.clip();
   const ry = roofY(b);
-  // cuerpo
-  ctx.fillStyle = b.color; ctx.fillRect(b.x, ry, b.w, b.h);
-  ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.fillRect(b.x + b.w - 6, ry, 6, b.h);
-  // cornisa y decoración
-  ctx.fillStyle = b.trim; ctx.fillRect(b.x - 4, ry - 6, b.w + 8, 8);
-  if (b.roofDeco === 'tank') {
-    ctx.fillStyle = '#6b4a2a'; ctx.fillRect(b.x + 10, ry - 30, 22, 20);
-    ctx.fillStyle = '#4a3220'; ctx.beginPath(); ctx.moveTo(b.x + 8, ry - 30); ctx.lineTo(b.x + 21, ry - 40); ctx.lineTo(b.x + 34, ry - 30); ctx.fill();
-    ctx.fillRect(b.x + 12, ry - 10, 3, 6); ctx.fillRect(b.x + 27, ry - 10, 3, 6);
-  } else if (b.roofDeco === 'antenna') {
-    limb(ctx, b.x + b.w - 18, ry - 6, b.x + b.w - 18, ry - 44, 2, '#333');
-    limb(ctx, b.x + b.w - 26, ry - 34, b.x + b.w - 10, ry - 34, 2, '#333');
-    if (Math.floor(G.time * 2) % 2) circle(ctx, b.x + b.w - 18, ry - 45, 3, '#f33');
-  } else if (b.roofDeco === 'sign') {
-    ctx.fillStyle = '#222'; ctx.fillRect(b.x + b.w / 2 - 30, ry - 26, 60, 18);
-    ctx.fillStyle = '#ff4fa3'; ctx.font = 'bold 12px sans-serif'; ctx.textAlign = 'center';
-    ctx.fillText(G.level % 2 ? 'HOTEL' : 'BANCO', b.x + b.w / 2, ry - 13); ctx.textAlign = 'left';
-  }
   const night = G.sky && G.sky[2];
+  // corona (silueta emblemática) y cuerpo
+  drawLandmarkCrown(ctx, b, ry);
+  if (st.win !== 'lattice') { ctx.fillStyle = b.color; ctx.fillRect(b.x, ry, b.w, b.h); }
+  else { ctx.fillStyle = shade(b.color, 0.9); ctx.fillRect(b.x, ry, 4, b.h); ctx.fillRect(b.x + b.w - 4, ry, 4, b.h); }
+  if (st.facade && FACADES[st.facade]) FACADES[st.facade](ctx, b, ry);
+  ctx.fillStyle = 'rgba(0,0,0,.18)'; ctx.fillRect(b.x + b.w - 6, ry, 6, b.h);
+  ctx.fillStyle = b.trim; ctx.fillRect(b.x - 3, ry - 3, b.w + 6, 5);
   for (let r = 0; r < b.rows; r++) {
     for (let c = 0; c < b.cols; c++) {
       const cell = b.cells[r][c];
       const x = b.x + c * CELL + 6, y = ry + r * CELL + 6;
-      if (r === b.rows - 1 && c === Math.floor(b.cols / 2) && cell.hp > 0 && !cell.content) {
+      if (r === b.rows - 1 && c === Math.floor(b.cols / 2) && cell.hp > 0 && !cell.content && st.win !== 'lattice') {
         ctx.fillStyle = '#3a2a1a'; ctx.fillRect(x, y, 20, 26); // puerta
         circle(ctx, x + 16, y + 14, 1.5, '#fc0');
         continue;
@@ -835,10 +892,7 @@ function drawBuilding(b) {
         ctx.lineTo(x + 25, y + 10); ctx.lineTo(x + 22, y + 24); ctx.lineTo(x + 10, y + 25); ctx.lineTo(x - 3, y + 22); ctx.closePath();
         ctx.fill();
       } else {
-        ctx.fillStyle = night ? (cell.light ? '#ffe28a' : '#1c2240') : '#5b87b5';
-        ctx.fillRect(x, y, 20, 20);
-        if (!night) { ctx.fillStyle = 'rgba(255,255,255,.35)'; ctx.fillRect(x + 2, y + 2, 6, 16); }
-        ctx.fillStyle = b.trim; ctx.fillRect(x - 2, y + 20, 24, 3);
+        drawLandmarkWindow(ctx, st, b, cell, x, y, night);
         if (cell.hp === 1) {
           ctx.strokeStyle = '#fff'; ctx.lineWidth = 1;
           ctx.beginPath(); ctx.moveTo(x + 3, y + 2); ctx.lineTo(x + 10, y + 9); ctx.lineTo(x + 7, y + 15); ctx.moveTo(x + 10, y + 9); ctx.lineTo(x + 18, y + 12); ctx.stroke();
@@ -848,6 +902,17 @@ function drawBuilding(b) {
     }
   }
   ctx.restore();
+}
+
+// Nombre de cada edificio al empezar el nivel
+function drawBuildingNames() {
+  if (G.scene !== 'play' || G.sceneT > 6) return;
+  ctx.globalAlpha = clamp(6 - G.sceneT, 0, 1);
+  for (const b of G.buildings) {
+    if (b.gone) continue;
+    text(b.name, b.x + b.w / 2, GROUND + 30, 13, '#fff', 'center', 3);
+  }
+  ctx.globalAlpha = 1;
 }
 
 function drawEnemy(e) {
@@ -975,7 +1040,7 @@ function drawBanner() {
   ctx.globalAlpha = a;
   ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(0, 170, W, 120);
   text(b.text, W / 2, 232, 52, '#ffcc00', 'center', 8);
-  text(b.sub, W / 2, 272, 20, '#fff', 'center', 4);
+  text(b.sub, W / 2, 272, Math.min(20, Math.floor(1750 / b.sub.length)), '#fff', 'center', 4);
   ctx.globalAlpha = 1;
 }
 
@@ -986,6 +1051,7 @@ function drawWorld() {
   drawRubble();
   for (const b of G.buildings) drawBuilding(b);
   drawStreet();
+  drawBuildingNames();
   for (const e of G.enemies) drawEnemy(e);
   drawPlayers();
   drawBullets();
@@ -999,7 +1065,7 @@ function drawWorld() {
 // ---------------------------------------------------------------------------
 let titleCity = false;
 function drawTitle() {
-  if (!titleCity) { G.level = 1; makeCity(4); G.sky = SKIES[2]; titleCity = true; }
+  if (!titleCity) { G.level = 1; makeCity(1); G.sky = SKIES[2]; titleCity = true; }
   drawBackground();
   for (const b of G.buildings) drawBuilding(b);
   drawStreet();
@@ -1027,12 +1093,12 @@ function drawTitle() {
   // controles
   ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(W / 2 - 300, 384, 600, 112);
   ctx.strokeStyle = '#555'; ctx.strokeRect(W / 2 - 300, 384, 600, 112);
-  text('CONTROLES', W / 2, 404, 15, '#fff', 'center', 3);
+  text('CONTROLES · Golpe + ↓ trepando = ¡golpe en diagonal!', W / 2, 404, 15, '#fff', 'center', 3);
   text('JUGADOR 1', W / 2 - 150, 426, 15, PLAYER_COLORS[0], 'center', 3);
-  text('Mover/trepar: W A S D', W / 2 - 150, 446, 14, '#fff', 'center', 3);
+  text('Mover: A D · Trepar (en un lateral): W S', W / 2 - 150, 446, 14, '#fff', 'center', 3);
   text('Golpe: F   ·   Salto: G', W / 2 - 150, 466, 14, '#fff', 'center', 3);
   text('JUGADOR 2', W / 2 + 150, 426, 15, PLAYER_COLORS[1], 'center', 3);
-  text('Mover/trepar: ← ↑ → ↓', W / 2 + 150, 446, 14, '#fff', 'center', 3);
+  text('Mover: ← → · Trepar (en un lateral): ↑ ↓', W / 2 + 150, 446, 14, '#fff', 'center', 3);
   text('Golpe: K   ·   Salto: L', W / 2 + 150, 466, 14, '#fff', 'center', 3);
   const padTxt = Input.padCount === 0 ? 'Mandos: conecta uno y pulsa un botón'
     : Input.padCount === 1 ? `1 mando detectado → ${(G.titleSel === 1) !== Input.swapPads ? 'JUGADOR 2' : 'JUGADOR 1'} · TAB para cambiar`
@@ -1139,6 +1205,20 @@ function render() {
       break;
     case 'gameover': drawGameOver(); break;
   }
+  drawSoundBadge();
+}
+
+// Aviso de sonido: Safari/Mac no deja sonar nada hasta pulsar una tecla o hacer clic.
+function drawSoundBadge() {
+  if (G.scene === 'setup') return;
+  let msg = null;
+  if (Sound.muted) msg = '🔇 Sonido silenciado (M)';
+  else if (Sound.blocked) msg = '🔈 Pulsa una tecla o haz clic para activar el sonido';
+  if (!msg) return;
+  ctx.font = 'bold 13px "Trebuchet MS", sans-serif';
+  const w = ctx.measureText(msg).width + 20;
+  ctx.fillStyle = 'rgba(0,0,0,.7)'; ctx.fillRect(W - w - 8, H - 30, w, 22);
+  ctx.fillStyle = '#fff'; ctx.textAlign = 'left'; ctx.fillText(msg, W - w + 2, H - 14);
 }
 
 function resize() {
@@ -1153,14 +1233,14 @@ window.addEventListener('resize', resize);
 resize();
 
 // El audio solo puede arrancar tras una interacción del usuario.
-['keydown', 'pointerdown', 'touchstart'].forEach(ev => window.addEventListener(ev, () => Sound.init(), { passive: true }));
+['keydown', 'keyup', 'pointerdown', 'pointerup', 'mousedown', 'touchend', 'click'].forEach(ev =>
+  window.addEventListener(ev, () => Sound.init(), { capture: true, passive: true }));
 
 let last = performance.now();
 function frame(now) {
   const dt = Math.min(0.05, (now - last) / 1000);
   last = now;
   Input.poll();
-  if (Input.anyPadPressed) Sound.init();
   update(dt);
   render();
   Input.endFrame();

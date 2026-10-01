@@ -4,21 +4,36 @@ const Sound = (() => {
   let ac = null, master = null, sfxGain = null, musicGain = null, noiseBuf = null;
   let muted = false, musicTimer = null, nextNote = 0, step = 0;
 
+  // Safari (Mac/iPhone) solo deja sonar el audio si el AudioContext se crea o se
+  // reanuda dentro de un gesto del usuario, y a veces lo pasa a "suspended" o
+  // "interrupted" (al cambiar de pestaña, de salida de audio…). Por eso, en CADA
+  // gesto se intenta reanudar y se reproduce un búfer silencioso de desbloqueo.
   function init() {
-    if (ac) { if (ac.state === 'suspended') ac.resume(); return; }
     const AC = window.AudioContext || window.webkitAudioContext;
     if (!AC) return;
-    ac = new AC();
-    master = ac.createGain(); master.gain.value = muted ? 0 : 0.55; master.connect(ac.destination);
-    sfxGain = ac.createGain(); sfxGain.gain.value = 1; sfxGain.connect(master);
-    musicGain = ac.createGain(); musicGain.gain.value = 0.32; musicGain.connect(master);
-    noiseBuf = ac.createBuffer(1, ac.sampleRate, ac.sampleRate);
-    const d = noiseBuf.getChannelData(0);
-    for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    if (!ac) {
+      try { ac = new AC({ latencyHint: 'interactive' }); } catch (e) { ac = new AC(); }
+      master = ac.createGain(); master.gain.value = muted ? 0 : 0.55; master.connect(ac.destination);
+      sfxGain = ac.createGain(); sfxGain.gain.value = 1; sfxGain.connect(master);
+      musicGain = ac.createGain(); musicGain.gain.value = 0.32; musicGain.connect(master);
+      noiseBuf = ac.createBuffer(1, ac.sampleRate * 2, ac.sampleRate);
+      const d = noiseBuf.getChannelData(0);
+      for (let i = 0; i < d.length; i++) d[i] = Math.random() * 2 - 1;
+    }
+    if (ac.state !== 'running') {
+      try {
+        const b = ac.createBuffer(1, 1, 22050);
+        const src = ac.createBufferSource();
+        src.buffer = b; src.connect(ac.destination); src.start(0);
+      } catch (e) { /* nada */ }
+      const r = ac.resume && ac.resume();
+      if (r && r.catch) r.catch(() => {});
+    }
   }
+  const ready = () => !!ac && ac.state === 'running';
 
   function tone(freq, dur, type = 'square', vol = 0.2, slideTo = null, delay = 0, out = null) {
-    if (!ac) return;
+    if (!ready()) return;
     const t = ac.currentTime + delay;
     const o = ac.createOscillator(), g = ac.createGain();
     o.type = type; o.frequency.setValueAtTime(freq, t);
@@ -30,7 +45,7 @@ const Sound = (() => {
   }
 
   function noise(dur, vol = 0.3, freq = 1000, delay = 0, out = null, q = 0.8) {
-    if (!ac) return;
+    if (!ready()) return;
     const t = ac.currentTime + delay;
     const s = ac.createBufferSource(); s.buffer = noiseBuf;
     const f = ac.createBiquadFilter(); f.type = 'lowpass'; f.frequency.value = freq; f.Q.value = q;
@@ -38,7 +53,7 @@ const Sound = (() => {
     g.gain.setValueAtTime(vol, t);
     g.gain.exponentialRampToValueAtTime(0.001, t + dur);
     s.connect(f); f.connect(g); g.connect(out || sfxGain);
-    s.start(t, Math.random() * 0.5); s.stop(t + dur + 0.02);
+    s.start(t, Math.random() * 0.2); s.stop(t + dur + 0.02);
   }
 
   const sfx = {
@@ -73,7 +88,8 @@ const Sound = (() => {
   const STEP = 60 / 150 / 2; // corcheas a 150 bpm
 
   function schedule() {
-    if (!ac) return;
+    if (!ready()) return;
+    if (nextNote < ac.currentTime) nextNote = ac.currentTime + 0.05; // tras una pausa del audio
     while (nextNote < ac.currentTime + 0.25) {
       const i = step % BASS.length;
       const t = nextNote - ac.currentTime;
@@ -86,8 +102,8 @@ const Sound = (() => {
     }
   }
   function startMusic() {
-    if (!ac || musicTimer) return;
-    nextNote = ac.currentTime + 0.05; step = 0;
+    if (musicTimer) return;
+    nextNote = 0; step = 0;
     musicTimer = setInterval(schedule, 60);
   }
   function stopMusic() { clearInterval(musicTimer); musicTimer = null; }
@@ -98,7 +114,7 @@ const Sound = (() => {
     return muted;
   }
 
-  function play(name) { if (ac && sfx[name]) sfx[name](); }
+  function play(name) { if (ready() && sfx[name]) sfx[name](); }
 
-  return { init, play, startMusic, stopMusic, toggleMute, get muted() { return muted; } };
+  return { init, play, startMusic, stopMusic, toggleMute, get muted() { return muted; }, get blocked() { return !ready(); } };
 })();
