@@ -414,7 +414,8 @@ function updatePlayer(p, dt) {
       const ry = roofY(b);
       if (p.y >= GROUND) {
         p.y = GROUND;
-        if (D && p.punchT <= 0) { p.state = 'ground'; p.building = null; p.x += -p.side * 6; }
+        // bajar del todo suelta el edificio, salvo si se está golpeando (golpe en diagonal a la planta baja)
+        if (D && !Input.held(i, 'punch') && p.punchCD < -0.35) { p.state = 'ground'; p.building = null; p.x += -p.side * 6; }
       }
       if (p.state === 'climb' && p.y < ry + 40) {
         if (U && p.punchT <= 0) { // subir a la azotea
@@ -501,12 +502,20 @@ function doPunch(p, U, D) {
   } else if (p.building && dir === 'down') {
     const c = cellAt(fx, fy); // golpe al suelo de la azotea
     if (c && damageCell(c, p)) hit = true;
-  } else if (!p.building && dir !== 'up') {
-    // en la calle, junto al lateral de un edificio
-    for (const b of G.buildings) {
-      if (b.collapsing || b.gone) continue;
-      const beside = p.f > 0 ? (p.x < b.x && fx >= b.x) : (p.x > b.x + b.w && fx <= b.x + b.w);
-      if (beside && punchWall(b, rowAt(b, fy), p.f, p)) { hit = true; break; }
+  } else if (!p.building) {
+    // en la calle (o saltando): junto al lateral, el puño entra por los agujeros…
+    let wall = false;
+    if (dir !== 'up') {
+      for (const b of G.buildings) {
+        if (b.collapsing || b.gone) continue;
+        const beside = p.f > 0 ? (p.x < b.x && fx >= b.x) : (p.x > b.x + b.w && fx <= b.x + b.w);
+        if (beside) { wall = true; if (punchWall(b, rowAt(b, fy), p.f, p)) hit = true; break; }
+      }
+    }
+    // …y delante de la fachada, rompe la ventana que alcance el puño
+    if (!wall && !(dir === 'up' && hit)) {
+      const c = cellAt(fx, fy);
+      if (c && damageCell(c, p)) hit = true;
     }
   }
   if (hit) { G.shake = Math.max(G.shake, 3); buzz(14); comboHit(p); }
