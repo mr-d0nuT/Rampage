@@ -67,7 +67,7 @@ function makeCity(level) {
     for (let r = 0; r < sp.rows; r++) {
       const row = [];
       for (let c = 0; c < sp.cols; c++) {
-        row.push({ hp: 2, content: null, contentT: 0, fireT: 0, light: Math.random() < 0.55, tint: randi(0, 9) });
+        row.push({ hp: 2, content: null, contentT: 0, fireT: 0, light: Math.random() < 0.55, tint: randi(0, 9), seed: Math.random() * 1000 });
       }
       b.cells.push(row);
     }
@@ -95,7 +95,7 @@ function buildingEdgeNear(x) {
   }
   return null;
 }
-const climbX = (b, f) => (f > 0 ? b.x - 14 : b.x + b.w + 14);
+const climbX = (b, f) => (f > 0 ? b.x - 16 : b.x + b.w + 16);
 
 // Golpe a la pared desde un lateral: si la ventana ya está rota, el puño entra
 // por el agujero y alcanza la siguiente (hasta 3 de profundidad).
@@ -138,13 +138,15 @@ function damageCell(hit, p) {
   if (cell.hp <= 0) return false;
   cell.hp--;
   if (cell.hp === 0) {
-    Sound.play('glass');
-    debris(pos.x, pos.y, 10, ['#9fd8ff', '#ffffff', b.color, b.trim]);
+    Sound.play('glass'); Sound.play('crack');
+    debris(pos.x, pos.y, 22, ['#9fd8ff', '#ffffff', b.color, b.color, b.trim, shade(b.color, 0.7)]);
+    dustBurst(pos.x, pos.y, 26, p ? p.f : 0);
     addScore(p, 50, pos.x, pos.y);
     registerBreak(b, r);
   } else {
     Sound.play('punch');
-    debris(pos.x, pos.y, 4, [b.color, b.trim]);
+    debris(pos.x, pos.y, 8, [b.color, b.trim, shade(b.color, 0.7)]);
+    dustBurst(pos.x, pos.y, 10, p ? p.f : 0);
     addScore(p, 10);
   }
   return true;
@@ -274,7 +276,7 @@ function makePlayer(i) {
 const isAlive = p => p.state !== 'dead' && !p.out;
 
 function monsterBox(p) {
-  return { x: p.x - 26, y: p.y - 130, w: 52, h: 130 };
+  return { x: p.x - 30, y: p.y - 140, w: 60, h: 140 };
 }
 
 function nearestMonster(x, y, maxDist = 9999) {
@@ -463,21 +465,23 @@ function doPunch(p, U, D) {
 
   // punto de impacto (fx, fy) y caja para golpear enemigos/jugadores
   let fx, fy, box;
+  // (posiciones escaladas al tamaño del cuerpo: BODY_SCALE)
+  const S = BODY_SCALE;
   if (climbing) {
-    if (dir === 'up') { fx = p.x + p.f * 34; fy = p.y - 96; }
-    else if (dir === 'down') { fx = p.x + p.f * 34; fy = p.y - 22; }
-    else { fx = p.x + p.f * 40; fy = p.y - 56; }
-    box = { x: fx - 22, y: fy - 22, w: 44, h: 44 };
-    if (dir === 'up') box = { x: p.x - 40, y: p.y - 150, w: 80, h: 70 }; // helicópteros cercanos
+    if (dir === 'up') { fx = p.x + p.f * 40 * S; fy = p.y - 100 * S; }
+    else if (dir === 'down') { fx = p.x + p.f * 34 * S; fy = p.y - 24 * S; }
+    else { fx = p.x + p.f * 44 * S; fy = p.y - 58 * S; }
+    box = { x: fx - 26, y: fy - 26, w: 52, h: 52 };
+    if (dir === 'up') box = { x: p.x - 50, y: p.y - 200, w: 100, h: 90 }; // helicópteros cercanos
   } else if (dir === 'up') {
-    fx = p.x + p.f * 8; fy = p.y - 118;
-    box = { x: fx - 22, y: fy - 26, w: 44, h: 44 };
+    fx = p.x + p.f * 10 * S; fy = p.y - 118 * S;
+    box = { x: fx - 26, y: fy - 30, w: 52, h: 52 };
   } else if (dir === 'down') {
-    fx = p.x + p.f * 16; fy = p.building ? p.y + 10 : p.y - 16;
-    box = { x: fx - 24, y: p.y - 30, w: 48, h: 44 };
+    fx = p.x + p.f * 26 * S; fy = p.building ? p.y + 10 : p.y - 16;
+    box = { x: fx - 28, y: p.y - 36, w: 56, h: 50 };
   } else {
-    fx = p.x + p.f * 42; fy = p.y - 54;
-    box = { x: fx - 20, y: fy - 22, w: 40, h: 76 };
+    fx = p.x + p.f * 48 * S; fy = p.y - 58 * S;
+    box = { x: fx - 24, y: fy - 26, w: 48, h: 96 };
   }
 
   let hit = false;
@@ -700,10 +704,18 @@ function updateBullets(dt) {
 // ---------------------------------------------------------------------------
 // Partículas y textos
 // ---------------------------------------------------------------------------
+// Cascotes disparados (trozos de pared que giran y rebotan en el suelo)
 function debris(x, y, n, colors) {
   for (let i = 0; i < n; i++) {
-    G.particles.push({ x, y, vx: rand(-160, 160), vy: rand(-260, -40), life: rand(0.5, 1.1), max: 1.1,
-      size: rand(3, 7), color: choice(colors), kind: 'chunk', grav: true, rot: rand(0, 6) });
+    G.particles.push({ x: x + rand(-8, 8), y: y + rand(-8, 8), vx: rand(-230, 230), vy: rand(-330, -60), life: rand(0.7, 1.5), max: 1.5,
+      size: rand(3, 10), color: choice(colors), kind: 'chunk', grav: true, rot: rand(0, 6), spin: rand(-12, 12) });
+  }
+}
+// Nube de polvo blanco que sale del golpe (como en el arcade)
+function dustBurst(x, y, n, dir = 0) {
+  for (let i = 0; i < n; i++) {
+    G.particles.push({ x: x + rand(-10, 10), y: y + rand(-10, 10), vx: rand(-90, 90) - dir * rand(20, 90), vy: rand(-90, 30),
+      life: rand(0.45, 1.0), max: 1.0, size: rand(8, 18), color: choice(['#f2efe8', '#dcd6cc', '#bdb5a8']), kind: 'dust' });
   }
 }
 function spark(x, y) {
@@ -731,7 +743,8 @@ function updateParticles(dt) {
     p.life -= dt;
     if (p.grav) p.vy += 900 * dt;
     p.x += p.vx * dt; p.y += p.vy * dt;
-    if (p.kind === 'chunk' && p.y > GROUND + 10) { p.y = GROUND + 10; p.vy *= -0.3; p.vx *= 0.6; }
+    if (p.kind === 'chunk') { p.rot += (p.spin || 0) * dt; if (p.y > GROUND + 10) { p.y = GROUND + 10; p.vy *= -0.35; p.vx *= 0.6; p.spin *= 0.5; } }
+    if (p.kind === 'dust') { p.vx *= 1 - dt * 3; p.vy *= 1 - dt * 3; p.size += dt * 10; }
   }
   G.particles = G.particles.filter(p => p.life > 0);
   if (G.particles.length > 600) G.particles.splice(0, G.particles.length - 600);
@@ -893,6 +906,7 @@ function drawBuilding(b) {
   ctx.beginPath(); ctx.rect(b.x - 70, -50, b.w + 140, GROUND + 50); ctx.clip();
   const ry = roofY(b);
   const night = G.sky && G.sky[2];
+  const holes = [];
   // corona (silueta emblemática) y cuerpo
   drawLandmarkCrown(ctx, b, ry);
   if (st.win !== 'lattice') { ctx.fillStyle = b.color; ctx.fillRect(b.x, ry, b.w, b.h); }
@@ -910,12 +924,7 @@ function drawBuilding(b) {
         continue;
       }
       if (cell.hp <= 0) {
-        // agujero
-        ctx.fillStyle = '#140d0a';
-        ctx.beginPath();
-        ctx.moveTo(x - 4, y + 2); ctx.lineTo(x + 6, y - 4); ctx.lineTo(x + 15, y); ctx.lineTo(x + 24, y - 3);
-        ctx.lineTo(x + 25, y + 10); ctx.lineTo(x + 22, y + 24); ctx.lineTo(x + 10, y + 25); ctx.lineTo(x - 3, y + 22); ctx.closePath();
-        ctx.fill();
+        holes.push([cell, x + 10, y + 10]);
       } else {
         drawLandmarkWindow(ctx, st, b, cell, x, y, night);
         if (cell.hp === 1) {
@@ -925,6 +934,55 @@ function drawBuilding(b) {
       }
       if (cell.content) drawWindowContent(cell.content, x, y, G.time);
     }
+  }
+  drawHoles(b, ry, holes);
+  // lo que hay dentro de las ventanas rotas (gente, comida…) se ve por encima del agujero
+  for (const [cell, cx, cy] of holes) if (cell.content) drawWindowContent(cell.content, cx - 10, cy - 10, G.time);
+  ctx.restore();
+}
+
+// Agujeros grandes, negros e irregulares: más grandes que la ventana, así que los
+// contiguos se unen en boquetes enormes, con grietas alrededor.
+function drawHoles(b, ry, holes) {
+  if (!holes.length) return;
+  ctx.save();
+  ctx.beginPath(); ctx.rect(b.x, ry, b.w, b.h); ctx.clip();
+  // grietas en la pared alrededor
+  ctx.strokeStyle = shade(b.color, 0.55); ctx.lineWidth = 1.5;
+  for (const [cell, cx, cy] of holes) {
+    let sd = cell.seed;
+    const rnd = () => { sd = (sd * 9301 + 49297) % 233280; return sd / 233280; };
+    for (let k = 0; k < 4; k++) {
+      const a = rnd() * Math.PI * 2;
+      let px = cx + Math.cos(a) * 18, py = cy + Math.sin(a) * 18;
+      ctx.beginPath(); ctx.moveTo(px, py);
+      for (let j = 0; j < 3; j++) { px += Math.cos(a + (rnd() - 0.5)) * 6; py += Math.sin(a + (rnd() - 0.5)) * 6; ctx.lineTo(px, py); }
+      ctx.stroke();
+    }
+  }
+  // borde de pared rota (un poco más claro) y luego el boquete negro
+  for (const pass of [0, 1]) {
+    ctx.fillStyle = pass ? '#060404' : shade(b.color, 0.5);
+    for (const [cell, cx, cy] of holes) {
+      let sd = cell.seed + 7;
+      const rnd = () => { sd = (sd * 9301 + 49297) % 233280; return sd / 233280; };
+      ctx.beginPath();
+      const n = 12;
+      for (let k = 0; k < n; k++) {
+        const a = (k / n) * Math.PI * 2;
+        const rr = (k % 2 ? 15 : 22) * (0.8 + rnd() * 0.45) - pass * 3;
+        const px = cx + Math.cos(a) * rr * 1.05, py = cy + Math.sin(a) * rr;
+        k ? ctx.lineTo(px, py) : ctx.moveTo(px, py);
+      }
+      ctx.closePath(); ctx.fill();
+    }
+  }
+  // cascotes colgando en el borde inferior de cada boquete
+  for (const [cell, cx, cy] of holes) {
+    let sd = cell.seed + 3;
+    const rnd = () => { sd = (sd * 9301 + 49297) % 233280; return sd / 233280; };
+    ctx.fillStyle = shade(b.color, 0.75);
+    for (let k = 0; k < 3; k++) ctx.fillRect(cx - 12 + rnd() * 20, cy + 10 + rnd() * 5, 3 + rnd() * 4, 3 + rnd() * 3);
   }
   ctx.restore();
 }
@@ -986,7 +1044,11 @@ function drawParticles() {
   for (const p of G.particles) {
     const a = clamp(p.life / p.max, 0, 1);
     ctx.globalAlpha = p.kind === 'smoke' ? a * 0.6 : a;
-    if (p.kind === 'chunk') { ctx.fillStyle = p.color; ctx.fillRect(p.x, p.y, p.size, p.size); }
+    if (p.kind === 'chunk') {
+      ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.rot || 0);
+      ctx.fillStyle = p.color; ctx.fillRect(-p.size / 2, -p.size * 0.35, p.size, p.size * 0.7);
+      ctx.restore();
+    } else if (p.kind === 'dust') { ctx.globalAlpha = a * 0.9; ctx.fillStyle = p.color; ctx.fillRect(p.x - p.size / 2, p.y - p.size / 2, p.size, p.size); }
     else if (p.kind === 'smoke') circle(ctx, p.x, p.y, p.size * (1.6 - a * 0.6), p.color);
     else circle(ctx, p.x, p.y, p.kind === 'fire' ? p.size * a : p.size, p.color);
   }
@@ -1019,8 +1081,8 @@ function drawPlayers() {
     ctx.globalAlpha = 1;
     // indicador de jugador
     ctx.fillStyle = p.color;
-    ctx.beginPath(); ctx.moveTo(p.x - 6, p.y - 158); ctx.lineTo(p.x + 6, p.y - 158); ctx.lineTo(p.x, p.y - 150); ctx.fill();
-    ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(p.name, p.x, p.y - 161); ctx.textAlign = 'left';
+    ctx.beginPath(); ctx.moveTo(p.x - 6, p.y - 162); ctx.lineTo(p.x + 6, p.y - 162); ctx.lineTo(p.x, p.y - 154); ctx.fill();
+    ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(p.name, p.x, p.y - 165); ctx.textAlign = 'left';
   }
 }
 

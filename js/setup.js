@@ -238,10 +238,10 @@ const Setup = (() => {
     if (!face) face = m._defaultFace || (m._defaultFace = defaultFace(m));
     pctx.setTransform(1, 0, 0, 1, 0, 0);
     pctx.clearRect(0, 0, preview.width, preview.height);
-    pctx.setTransform(1.45, 0, 0, 1.45, 0, 0);
+    pctx.setTransform(1.32, 0, 0, 1.32, 0, 0);
     const punch = (time % 1.6) > 1.3;
     drawMonster(pctx, {
-      x: 74, y: 158, f: 1, state: 'ground', anim: time * 6,
+      x: 78, y: 176, f: 1, state: 'ground', anim: time * 6,
       punchT: punch ? 0.1 : 0, punchDir: 'side', hurtT: 0, eatT: 0, m, face,
     }, time);
   }

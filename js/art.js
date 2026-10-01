@@ -330,117 +330,162 @@ function drawHead(c, cx, cy, r, m, face, opts = {}) {
 }
 
 // s: { x, y, f, state, anim, punchT, punchDir, hurtT, eatT, m, face, vy }
+// ---------------------------------------------------------------------------
+// Cuerpos en pixel art, al estilo del Rampage de NES: se dibujan en un sprite
+// pequeño (unidades de sprite), se les pone contorno oscuro y se amplían sin
+// suavizado. Pies en (40, 76) del sprite.
+// ---------------------------------------------------------------------------
+const PX = 2.2;              // tamaño en pantalla de cada píxel del sprite
+const BODY_SCALE = PX / 2;   // (compatibilidad con el alcance de los golpes)
+const HEAD_R = 21;
+const SPR_W = 96, SPR_H = 80, FOOT_X = 40, FOOT_Y = 76;
+const sprBody = document.createElement('canvas'); sprBody.width = SPR_W; sprBody.height = SPR_H;
+const sprOut = document.createElement('canvas'); sprOut.width = SPR_W; sprOut.height = SPR_H;
+const sprTmp = document.createElement('canvas'); sprTmp.width = SPR_W; sprTmp.height = SPR_H;
+
+function ell(g, x, y, rx, ry, col, rot = 0) { g.fillStyle = col; g.beginPath(); g.ellipse(x, y, rx, ry, rot, 0, Math.PI * 2); g.fill(); }
+function seg(g, pts, w, col) { // extremidad gruesa por varios puntos
+  g.strokeStyle = col; g.lineWidth = w; g.lineCap = 'round'; g.lineJoin = 'round';
+  g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.stroke();
+}
+function spikes(g, pts, col, len) {
+  g.fillStyle = col;
+  for (let i = 0; i < pts.length - 1; i++) {
+    const [x0, y0] = pts[i], [x1, y1] = pts[i + 1];
+    const dx = x1 - x0, dy = y1 - y0, d = Math.hypot(dx, dy) || 1;
+    g.beginPath(); g.moveTo(x0, y0); g.lineTo((x0 + x1) / 2 + dy / d * len, (y0 + y1) / 2 - dx / d * len); g.lineTo(x1, y1); g.fill();
+  }
+}
+
+// Brazo delantero según la acción (devuelve los puntos hombro-codo-puño)
+function frontArm(sx, sy, s, k, walk, rest) {
+  if (s.punchT > 0) {
+    if (s.punchDir === 'up') return [[sx, sy], [sx + 3, sy - 9], [sx + 4, sy - 18 - k * 4]];
+    if (s.punchDir === 'down') return [[sx, sy], [sx + 7, sy + 9], [sx + 12, sy + 20 + k * 3]];
+    return [[sx, sy], [sx + 9, sy + 1], [sx + 17 + k * 5, sy]];
+  }
+  return rest(walk);
+}
+
+function drawBodySprite(g, s, m, col) {
+  const { body, belly, dark } = col;
+  const k = s.punchT > 0 ? 1 - Math.abs(s.punchT / 0.2 - 0.5) * 2 : 0;
+  const walk = Math.sin(s.anim);
+  const air = s.state === 'air';
+  const lg = air ? 0 : walk * 3;
+
+  if (s.state === 'climb') {
+    // De perfil pegado a la pared (pared a la derecha): piernas de rana, brazos arriba
+    const a = Math.sin(s.anim) * 3;
+    if (m.type === 'lizard') seg(g, [[34, 58], [28, 66], [26, 76]], 7, body);
+    if (m.type === 'wolf') seg(g, [[33, 58], [28, 66]], 5, dark);
+    seg(g, [[38, 56], [46, 58 - a], [46, 66 - a]], 7, dark);                 // pierna de atrás
+    seg(g, [[38, 58], [47, 63 + a], [46, 72 + a]], 8, body);                 // pierna delantera
+    ell(g, 48, 72 + a, 3, 2, dark);
+    seg(g, [[40, 40], [46, 32 + a], [48, 24 + a]], 6, dark);                 // brazo de atrás agarrado
+    ell(g, 39, 48, 9, 14, body);                                             // torso
+    ell(g, 43, 50, 4, 9, belly);
+    if (m.type === 'lizard') spikes(g, [[31, 58], [30, 50], [31, 42], [34, 36]], dark, 3);
+    else spikes(g, [[31, 58], [30, 50], [31, 42], [35, 36]], body, 2.5);
+    const fa = frontArm(42, 40, s, k, a, w => [[42, 40], [46, 31 - w], [49, 22 - w]]);
+    seg(g, fa, 7, body); ell(g, fa[2][0] + 1, fa[2][1], 3.5, 3.5, dark);
+    return { nx: 41, ny: 37 };
+  }
+
+  if (m.type === 'ape') {
+    // George: encorvado, joroba de hombros enorme, nudillos casi en el suelo
+    seg(g, [[35, 62], [33 - lg, 69], [34 - lg, 75]], 7, dark);
+    ell(g, 35 - lg, 75, 4.5, 2, dark);
+    seg(g, [[30, 44], [26, 56], [28 + walk * 2, 70]], 6.5, dark);          // brazo de atrás
+    ell(g, 28 + walk * 2, 70, 3.5, 3, dark);
+    ell(g, 39, 54, 12, 11, body);                                           // barriga/caderas
+    ell(g, 41, 43, 14, 9, body);                                            // joroba de hombros
+    seg(g, [[44, 62], [46 + lg, 69], [46 + lg, 75]], 8, body);              // pierna delantera
+    ell(g, 48 + lg, 75, 5, 2, dark);
+    ell(g, 47, 50, 6, 8, belly);                                            // pecho claro
+    spikes(g, [[28, 52], [27, 44], [31, 37], [38, 34], [46, 34]], body, 2.5);
+    g.strokeStyle = dark; g.lineWidth = 1;
+    for (let i = 0; i < 4; i++) { g.beginPath(); g.moveTo(32 + i * 3, 40 + i); g.lineTo(31 + i * 3, 45 + i); g.stroke(); }
+    const fa = frontArm(50, 42, s, k, walk, w => [[50, 42], [55, 54 - w], [53 - w * 2, 69]]);
+    seg(g, fa, 7.5, body); ell(g, fa[2][0], fa[2][1], 4, 3.5, dark);
+    return { nx: 46, ny: 38 };
+  }
+  if (m.type === 'wolf') {
+    // Ralph: erguido, musculoso, piernas de lobo dobladas, cola peluda
+    ell(g, 27, 56 + walk, 4, 9, dark, 0.7);                                  // cola
+    seg(g, [[36, 58], [38 - lg, 65], [34 - lg, 70], [37 - lg, 75]], 6, dark);
+    ell(g, 38 - lg, 75, 4, 1.8, dark);
+    seg(g, [[32, 38], [27, 48], [30 + walk * 2, 57]], 6, dark);              // brazo de atrás
+    spikes(g, [[29, 60], [31, 62], [33, 60]], dark, 3);
+    g.fillStyle = body;                                                      // torso en V
+    g.beginPath(); g.moveTo(29, 36); g.quadraticCurveTo(40, 30, 52, 36); g.lineTo(47, 50); g.quadraticCurveTo(44, 60, 40, 60);
+    g.quadraticCurveTo(34, 60, 33, 50); g.closePath(); g.fill();
+    seg(g, [[43, 58], [46 + lg, 65], [42 + lg, 70], [45 + lg, 75]], 7, body);
+    ell(g, 47 + lg, 75, 4.5, 1.8, dark);
+    g.fillStyle = belly;                                                     // pecho blanco
+    g.beginPath(); g.moveTo(37, 38); g.quadraticCurveTo(44, 36, 48, 40); g.lineTo(44, 54); g.quadraticCurveTo(40, 57, 38, 52); g.closePath(); g.fill();
+    spikes(g, [[29, 46], [28, 40], [31, 35], [36, 33]], body, 2.5);
+    spikes(g, [[45, 33], [50, 34], [53, 38]], body, 2);
+    const fa = frontArm(49, 39, s, k, walk, w => [[49, 39], [54, 47 - w], [50 - w, 55]]);
+    seg(g, fa, 6.5, body); ell(g, fa[2][0], fa[2][1], 3.2, 3, dark);
+    spikes(g, [[fa[2][0] - 2, fa[2][1] + 2], [fa[2][0] + 2, fa[2][1] + 3]], '#f0ece0', 2.5); // garras
+    return { nx: 41, ny: 34 };
+  }
+  // Lizzie: erguida, barriga clara enorme, cola gruesa apoyada en el suelo
+  g.fillStyle = body;
+  g.beginPath(); g.moveTo(34, 56); g.quadraticCurveTo(22, 64, 8 + walk, 74); g.lineTo(10 + walk, 77);
+  g.quadraticCurveTo(26, 72, 38, 66); g.closePath(); g.fill();              // cola
+  seg(g, [[36, 64], [34 - lg, 70], [35 - lg, 75]], 7, dark);
+  ell(g, 36 - lg, 75, 4.5, 2, dark);
+  seg(g, [[34, 42], [30, 50], [33 + walk, 56]], 5.5, dark);                 // bracito de atrás
+  ell(g, 40, 52, 11, 15, body);                                             // torso en pera
+  seg(g, [[44, 64], [46 + lg, 70], [46 + lg, 75]], 8, body);
+  ell(g, 48 + lg, 75, 5, 2, dark);
+  ell(g, 44, 54, 7, 11, belly);                                             // barriga
+  g.strokeStyle = shade(m.belly, 0.75); g.lineWidth = 0.8;
+  for (let y = 46; y < 64; y += 3) { g.beginPath(); g.moveTo(39, y); g.lineTo(50, y + 1); g.stroke(); }
+  spikes(g, [[30, 62], [29, 54], [30, 46], [33, 40], [37, 37]], dark, 3);
+  g.fillStyle = dark; for (let i = 0; i < 8; i++) g.fillRect(33 + (i % 3) * 3, 42 + Math.floor(i / 3) * 5, 1, 1);
+  const fa = frontArm(47, 42, s, k, walk, w => [[47, 42], [52, 48 - w], [50, 55]]);
+  seg(g, fa, 6, body); ell(g, fa[2][0], fa[2][1], 3, 3, dark);
+  return { nx: 42, ny: 37 };
+}
+
+// s: { x, y, f, state, anim, punchT, punchDir, hurtT, eatT, m, face }
 function drawMonster(c, s, time) {
   const m = s.m;
   const hurt = s.hurtT > 0;
-  const body = hurt ? '#ffffff' : m.body;
-  const belly = hurt ? '#ffd0d0' : m.belly;
-  const dark = hurt ? '#ffb0b0' : m.dark;
+  const col = { body: m.body, belly: m.belly, dark: m.dark };
   const punching = s.punchT > 0;
-  const walk = Math.sin(s.anim) * 7;
-
+  // 1) cuerpo en el sprite
+  const g = sprBody.getContext('2d');
+  g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, SPR_W, SPR_H);
+  const neck = drawBodySprite(g, s, m, col);
+  // 2) contorno oscuro de 1 píxel alrededor
+  const o = sprOut.getContext('2d');
+  o.clearRect(0, 0, SPR_W, SPR_H);
+  const t = sprTmp.getContext('2d');
+  t.globalCompositeOperation = 'source-over'; t.clearRect(0, 0, SPR_W, SPR_H);
+  t.drawImage(sprBody, 0, 0);
+  t.globalCompositeOperation = 'source-in'; t.fillStyle = '#120a06'; t.fillRect(0, 0, SPR_W, SPR_H);
+  t.globalCompositeOperation = 'source-over';
+  for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) o.drawImage(sprTmp, dx, dy);
+  o.drawImage(sprBody, 0, 0);
+  if (hurt) { o.globalCompositeOperation = 'source-atop'; o.fillStyle = 'rgba(255,255,255,.85)'; o.fillRect(0, 0, SPR_W, SPR_H); o.globalCompositeOperation = 'source-over'; }
+  // 3) a pantalla, ampliado sin suavizado
   c.save();
+  if (s.state !== 'climb') { c.fillStyle = 'rgba(0,0,0,.25)'; c.beginPath(); c.ellipse(s.x, s.y, 26, 5, 0, 0, Math.PI * 2); c.fill(); }
   c.translate(s.x, s.y);
-
-  // sombra
-  if (s.state !== 'climb') {
-    c.fillStyle = 'rgba(0,0,0,.25)';
-    c.beginPath(); c.ellipse(0, 0, 24, 5, 0, 0, Math.PI * 2); c.fill();
-  }
-
-  if (s.state === 'climb') {
-    // De perfil, agarrado al lateral del edificio (el edificio queda delante: +x tras escalar por f)
-    const a = Math.sin(s.anim);
-    c.save();
-    c.scale(s.f, 1);
-    if (m.type !== 'ape') limb(c, -14, -30, -22 + a * 3, -4, 9, dark); // cola colgando
-    // piernas apoyadas en la pared
-    limb(c, 0, -28, 16, -18 - a * 5, 12, dark);
-    limb(c, 16, -18 - a * 5, 13, -2 - a * 5, 11, dark);
-    limb(c, 2, -26, 17, -14 + a * 5, 13, body);
-    limb(c, 17, -14 + a * 5, 15, 0 + a * 5, 12, body);
-    circle(c, 18, 0 + a * 5, 6, dark);
-    // brazo de atrás agarrado arriba
-    limb(c, 4, -60, 17, -92 - a * 8, 11, dark);
-    circle(c, 18, -94 - a * 8, 7, dark);
-    // torso
-    c.fillStyle = body;
-    c.beginPath(); c.ellipse(0, -46, 20, 26, 0, 0, Math.PI * 2); c.fill();
-    c.fillStyle = belly;
-    c.beginPath(); c.ellipse(7, -42, 10, 17, 0, 0, Math.PI * 2); c.fill();
-    if (m.type === 'lizard') {
-      c.fillStyle = '#f06a2a';
-      for (let i = 0; i < 3; i++) { c.beginPath(); c.moveTo(-18, -62 + i * 12); c.lineTo(-27, -56 + i * 12); c.lineTo(-19, -52 + i * 12); c.fill(); }
-    }
-    // brazo delantero: golpe recto, diagonal abajo o diagonal arriba
-    if (punching) {
-      const k = 1 - Math.abs(s.punchT / 0.2 - 0.5) * 2;
-      let hx = 34 + k * 8, hy = -56;
-      if (s.punchDir === 'down') { hx = 30 + k * 6; hy = -24 + k * 4; }
-      else if (s.punchDir === 'up') { hx = 30 + k * 6; hy = -96 - k * 6; }
-      limb(c, 6, -58, hx, hy, 12, body);
-      circle(c, hx + 2, hy, 10, dark);
-    } else {
-      limb(c, 6, -58, 18, -84 + a * 8, 12, body);
-      circle(c, 19, -86 + a * 8, 8, dark);
-    }
-    c.restore();
-    c.restore();
-    drawHead(c, s.x - s.f * 2, s.y - 92, 29, m, s.face, { hurt, eat: s.eatT, time, tilt: s.f * 0.08, f: s.f, roar: punching });
-    return;
-  }
-
-  const f = s.f;
-  c.save();
-  c.scale(f, 1);
-  const inAir = s.state === 'air';
-  // cola
-  if (m.type === 'lizard') {
-    c.fillStyle = body;
-    c.beginPath(); c.moveTo(-14, -34); c.quadraticCurveTo(-46, -24, -50, -2); c.lineTo(-36, -6); c.quadraticCurveTo(-30, -18, -10, -20); c.fill();
-  } else if (m.type === 'wolf') {
-    limb(c, -16, -30, -34, -40 + walk * 0.4, 9, dark);
-  }
-  // piernas
-  if (inAir) {
-    limb(c, -8, -26, -14, -10, 13, dark);
-    limb(c, 8, -26, 12, -8, 13, body);
-  } else {
-    limb(c, -8, -26, -8 + walk, -5, 13, dark);
-    limb(c, 8, -26, 8 - walk, -5, 13, body);
-    c.fillStyle = dark;
-    c.beginPath(); c.ellipse(-6 + walk, -3, 10, 5, 0, 0, Math.PI * 2); c.fill();
-    c.beginPath(); c.ellipse(10 - walk, -3, 10, 5, 0, 0, Math.PI * 2); c.fill();
-  }
-  // brazo de atrás
-  limb(c, -12, -58, -16 - walk * 0.4, -30, 11, dark);
-  circle(c, -16 - walk * 0.4, -28, 7, dark);
-  // torso
-  c.fillStyle = body;
-  c.beginPath(); c.ellipse(0, -44, 22, 25, 0, 0, Math.PI * 2); c.fill();
-  c.fillStyle = belly;
-  c.beginPath(); c.ellipse(6, -40, 12, 17, 0, 0, Math.PI * 2); c.fill();
-  if (m.type === 'lizard') { // escamas en la espalda
-    c.fillStyle = '#f06a2a';
-    for (let i = 0; i < 3; i++) { c.beginPath(); c.moveTo(-20, -60 + i * 12); c.lineTo(-29, -54 + i * 12); c.lineTo(-21, -50 + i * 12); c.fill(); }
-  }
-  // brazo delantero
-  if (punching) {
-    const k = 1 - Math.abs(s.punchT / 0.2 - 0.5) * 2; // 0..1..0
-    if (s.punchDir === 'up') {
-      limb(c, 10, -60, 8, -100 - k * 14, 12, body); circle(c, 8, -104 - k * 14, 10, dark);
-    } else if (s.punchDir === 'down') {
-      limb(c, 10, -56, 16, -10 + k * 12, 12, body); circle(c, 16, -6 + k * 12, 10, dark);
-    } else {
-      limb(c, 10, -58, 28 + k * 14, -54, 12, body); circle(c, 32 + k * 14, -54, 10, dark);
-    }
-  } else {
-    limb(c, 12, -58, 16 + walk * 0.4, -30, 12, body);
-    circle(c, 16 + walk * 0.4, -28, 8, dark);
-  }
+  c.scale(s.f, 1);
+  const smooth = c.imageSmoothingEnabled;
+  c.imageSmoothingEnabled = false;
+  c.drawImage(sprOut, -FOOT_X * PX, -FOOT_Y * PX, SPR_W * PX, SPR_H * PX);
+  c.imageSmoothingEnabled = smooth;
   c.restore();
-  c.restore();
-  drawHead(c, s.x + f * 3, s.y - 92, 29, m, s.face, { hurt, eat: s.eatT, time, tilt: punching ? f * 0.12 : 0, f, roar: punching });
+  // 4) la cabeza (foto o retrato) sobre los hombros
+  const hx = s.x + s.f * (neck.nx - FOOT_X) * PX;
+  const hy = s.y + (neck.ny - FOOT_Y) * PX - HEAD_R * 0.75;
+  drawHead(c, hx, hy, HEAD_R, m, s.face, { hurt, eat: s.eatT, time, tilt: punching ? s.f * 0.1 : 0, f: s.f, roar: punching });
 }
 
 // Forma humana (al perder toda la vida): en calzoncillos, con la cara del jugador.
