@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Face Rampage</title>
+  <meta name="description" content="Clon de Rampage para 1 o 2 jugadores en el que tu cara es la cara del monstruo.">
+  <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+  <canvas id="game" width="960" height="540"></canvas>
+
+  <!-- Pantalla de selección de monstruo + foto -->
+  <div id="setup" class="hidden">
+    <div class="setup-card">
+      <h2 id="setupTitle">JUGADOR 1</h2>
+      <p class="sub" id="setupSub">Elige tu monstruo y hazte una foto: ¡tu cara será la del monstruo!</p>
+      <div class="setup-body">
+        <div class="cam-col">
+          <div class="cam-box">
+            <video id="video" autoplay playsinline muted></video>
+            <canvas id="shot" width="320" height="320"></canvas>
+            <div class="oval"></div>
+            <div id="countdown"></div>
+            <div id="flash"></div>
+            <div id="camMsg"></div>
+          </div>
+          <div class="btn-row">
+            <button id="btnPhoto" class="btn primary">📸 Hacer foto</button>
+            <button id="btnRetake" class="btn">↺ Repetir</button>
+          </div>
+          <div class="btn-row">
+            <label class="btn small">📁 Subir imagen<input type="file" id="fileInput" accept="image/*" capture="user" hidden></label>
+            <button id="btnNoPhoto" class="btn small">🙈 Sin foto</button>
+          </div>
+        </div>
+        <div class="side-col">
+          <canvas id="monsterPreview" width="240" height="240"></canvas>
+          <div id="monsterPick"></div>
+          <button id="btnOk" class="btn go">✔ ¡LISTO!</button>
+          <p class="hint" id="setupHint"></p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="js/audio.js"></script>
+  <script src="js/input.js"></script>
+  <script src="js/art.js"></script>
+  <script src="js/setup.js"></script>
+  <script src="js/game.js"></script>
+</body>
+</html>

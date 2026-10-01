@@ -1,0 +1,93 @@
+* { box-sizing: border-box; }
+html, body {
+  margin: 0; height: 100%; overflow: hidden;
+  background: #000; color: #fff;
+  font-family: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
+}
+#game {
+  position: absolute; left: 50%; top: 50%;
+  transform: translate(-50%, -50%);
+  display: block; background: #000;
+}
+.hidden { display: none !important; }
+
+/* ---------- Setup overlay ---------- */
+#setup {
+  position: fixed; inset: 0; z-index: 10;
+  display: flex; align-items: center; justify-content: center;
+  background: radial-gradient(circle at 50% 30%, rgba(60, 20, 90, .92), rgba(5, 0, 15, .97));
+  padding: 16px; overflow: auto;
+}
+.setup-card {
+  width: min(920px, 100%);
+  background: rgba(0, 0, 0, .55);
+  border: 4px solid var(--pc, #ffcc00);
+  border-radius: 18px; padding: 18px 22px 22px;
+  box-shadow: 0 0 40px var(--pc, #ffcc00);
+}
+#setup h2 {
+  margin: 0; text-align: center; font-size: clamp(28px, 5vw, 46px);
+  letter-spacing: 4px; color: var(--pc, #ffcc00);
+  text-shadow: 3px 3px 0 #000, 0 0 18px var(--pc, #ffcc00);
+}
+#setup .sub { text-align: center; margin: 6px 0 14px; opacity: .9; }
+.setup-body { display: flex; gap: 22px; flex-wrap: wrap; justify-content: center; }
+.cam-col { display: flex; flex-direction: column; gap: 10px; align-items: center; }
+.side-col { display: flex; flex-direction: column; gap: 10px; align-items: center; width: 300px; max-width: 100%; }
+
+.cam-box {
+  position: relative; width: 320px; height: 320px; max-width: 80vw; max-height: 80vw;
+  border-radius: 14px; overflow: hidden; background: #111;
+  border: 3px solid #444;
+}
+.cam-box video, .cam-box canvas#shot {
+  position: absolute; inset: 0; width: 100%; height: 100%; object-fit: cover;
+}
+.cam-box video { transform: scaleX(-1); }
+.cam-box .oval {
+  position: absolute; left: 12.5%; top: 12.5%; width: 75%; height: 75%;
+  border-radius: 50%; border: 3px dashed rgba(255, 255, 255, .85);
+  box-shadow: 0 0 0 999px rgba(0, 0, 0, .45);
+  pointer-events: none;
+}
+#countdown {
+  position: absolute; inset: 0; display: flex; align-items: center; justify-content: center;
+  font-size: 120px; font-weight: bold; color: #fff; text-shadow: 0 0 20px #000, 4px 4px 0 #000;
+  pointer-events: none;
+}
+#flash { position: absolute; inset: 0; background: #fff; opacity: 0; pointer-events: none; transition: opacity .35s; }
+#flash.on { opacity: 1; transition: none; }
+#camMsg {
+  position: absolute; left: 8px; right: 8px; bottom: 8px; text-align: center;
+  font-size: 14px; background: rgba(0, 0, 0, .7); border-radius: 8px; padding: 6px;
+}
+#camMsg:empty { display: none; }
+
+.btn-row { display: flex; gap: 10px; }
+.btn {
+  font: inherit; font-weight: bold; font-size: 17px; cursor: pointer;
+  color: #fff; background: #333; border: 2px solid #777; border-radius: 10px;
+  padding: 9px 16px; user-select: none;
+}
+.btn:hover { background: #444; border-color: #aaa; }
+.btn.small { font-size: 14px; padding: 7px 12px; }
+.btn.primary { background: #c0392b; border-color: #ff7b6b; }
+.btn.primary:hover { background: #e74c3c; }
+.btn.go { background: #1e8e3e; border-color: #6fe08f; font-size: 22px; width: 100%; }
+.btn.go:hover { background: #27ae50; }
+.btn:disabled { opacity: .4; cursor: default; }
+
+#monsterPreview { width: 240px; height: 240px; background: rgba(255, 255, 255, .05); border-radius: 14px; }
+#monsterPick { display: flex; gap: 8px; width: 100%; }
+.mcard {
+  flex: 1; text-align: center; padding: 8px 4px; border-radius: 10px; cursor: pointer;
+  border: 3px solid transparent; background: rgba(255, 255, 255, .08); font-size: 13px;
+}
+.mcard b { display: block; font-size: 16px; }
+.mcard .dot { display: inline-block; width: 18px; height: 18px; border-radius: 50%; border: 2px solid #000; }
+.mcard.sel { border-color: var(--pc, #ffcc00); background: rgba(255, 255, 255, .18); }
+.hint { font-size: 14px; line-height: 1.45; text-align: center; opacity: .85; margin: 4px 0 0; }
+.hint kbd {
+  display: inline-block; min-width: 22px; padding: 1px 6px; border-radius: 5px;
+  background: #eee; color: #000; font-family: monospace; font-weight: bold; border-bottom: 3px solid #999;
+}
