@@ -12,14 +12,14 @@ los gráficos, la música y los efectos se generan por código.
 ### Opción A: GitHub Pages (recomendado)
 1. En este repositorio, ve a **Settings → Pages**.
 2. En *Build and deployment*, elige **Source: Deploy from a branch**, **Branch: `main`**, carpeta **`/ (root)`** y pulsa **Save**.
-3. En un minuto el juego estará en `https://<tu-usuario>.github.io/face-rampage/`.
+3. En un minuto el juego estará en `https://mr-d0nut.github.io/Rampage/`.
 
 > Como GitHub Pages sirve el juego por **https**, el navegador te deja usar la webcam.
 
 ### Opción B: en local
 ```bash
-git clone https://github.com/<tu-usuario>/face-rampage.git
-cd face-rampage
+git clone https://github.com/mr-d0nuT/Rampage.git
+cd Rampage
 python3 -m http.server 8000
 # abre http://localhost:8000
 ```
