@@ -272,7 +272,7 @@ function makePlayer(i) {
 const isAlive = p => p.state !== 'dead' && !p.out;
 
 function monsterBox(p) {
-  return { x: p.x - 22, y: p.y - 100, w: 44, h: 100 };
+  return { x: p.x - 24, y: p.y - 113, w: 48, h: 113 };
 }
 
 function nearestMonster(x, y, maxDist = 9999) {
@@ -994,8 +994,8 @@ function drawPlayers() {
     ctx.globalAlpha = 1;
     // indicador de jugador
     ctx.fillStyle = p.color;
-    ctx.beginPath(); ctx.moveTo(p.x - 6, p.y - 128); ctx.lineTo(p.x + 6, p.y - 128); ctx.lineTo(p.x, p.y - 120); ctx.fill();
-    ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('J' + (p.i + 1), p.x, p.y - 131); ctx.textAlign = 'left';
+    ctx.beginPath(); ctx.moveTo(p.x - 6, p.y - 140); ctx.lineTo(p.x + 6, p.y - 140); ctx.lineTo(p.x, p.y - 132); ctx.fill();
+    ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('J' + (p.i + 1), p.x, p.y - 143); ctx.textAlign = 'left';
   }
 }
 

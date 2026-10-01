@@ -10,7 +10,7 @@ const FaceCut = (() => {
   const OVAL = [10, 338, 297, 332, 284, 251, 389, 356, 454, 323, 361, 288, 397, 365, 379, 378, 400, 377,
     152, 148, 176, 149, 150, 136, 172, 58, 132, 93, 234, 127, 162, 21, 54, 103, 67, 109];
 
-  let landmarker = null, loading = null;
+  let landmarker = null, loading = null, attempts = 0;
   let status = 'idle'; // idle | loading | ready | failed
   let lastTs = 0;
   const work = document.createElement('canvas');
@@ -31,7 +31,16 @@ const FaceCut = (() => {
         status = 'ready';
       } catch (e) {
         console.warn('FaceCut: no se pudo cargar el detector de caras', e);
-        landmarker = null; status = 'failed';
+        landmarker = null;
+        attempts++;
+        // red inestable: se reintenta solo un par de veces antes de rendirse
+        if (attempts < 3) {
+          loading = null;
+          await new Promise(r => setTimeout(r, 2000));
+          return load();
+        }
+        status = 'failed';
+        loading = null; attempts = 0; // se podrá reintentar al volver a la pantalla de foto
       }
       return landmarker;
     })();
@@ -99,6 +108,7 @@ const FaceCut = (() => {
     // contorno estilo cómic
     o.strokeStyle = 'rgba(40,20,10,.55)'; o.lineWidth = 2.5; o.lineJoin = 'round';
     polyPath(o, tp); o.stroke();
+    out._cut = true;
     return out;
   }
 
@@ -123,6 +133,7 @@ const FaceCut = (() => {
     o.globalCompositeOperation = 'destination-in';
     o.drawImage(mask, 0, 0);
     o.globalCompositeOperation = 'source-over';
+    out._cut = true;
     return out;
   }
 

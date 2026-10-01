@@ -131,7 +131,12 @@ function drawHead(c, cx, cy, r, m, face, opts = {}) {
   circle(c, 0, 0, r + 4, m.dark);
   circle(c, 0, 0, r + 1.5, m.body);
   // la cara
-  c.drawImage(face, -r, -r, r * 2, r * 2);
+  // La cara recortada (sin fondo) se dibuja grande, tapando casi toda la cabeza;
+  // la cara por defecto (círculo) cabe justa en el marco.
+  if (face._cut) {
+    const fs = r * 2.5;
+    c.drawImage(face, -fs / 2, -fs / 2 + r * 0.04, fs, fs);
+  } else c.drawImage(face, -r, -r, r * 2, r * 2);
   if (hurt) {
     c.globalAlpha = 0.55;
     circle(c, 0, 0, r, '#ff2020');
@@ -200,7 +205,7 @@ function drawMonster(c, s, time) {
     }
     c.restore();
     c.restore();
-    drawHead(c, s.x - s.f * 2, s.y - 78, 23, m, s.face, { hurt, eat: s.eatT, time, tilt: s.f * 0.08 });
+    drawHead(c, s.x - s.f * 2, s.y - 84, 29, m, s.face, { hurt, eat: s.eatT, time, tilt: s.f * 0.08 });
     return;
   }
 
@@ -254,7 +259,7 @@ function drawMonster(c, s, time) {
   }
   c.restore();
   c.restore();
-  drawHead(c, s.x + f * 3, s.y - 78, 23, m, s.face, { hurt, eat: s.eatT, time, tilt: punching ? f * 0.12 : 0 });
+  drawHead(c, s.x + f * 3, s.y - 84, 29, m, s.face, { hurt, eat: s.eatT, time, tilt: punching ? f * 0.12 : 0 });
 }
 
 // Forma humana (al perder toda la vida): en calzoncillos, con la cara del jugador.
@@ -276,8 +281,8 @@ function drawHuman(c, x, y, f, anim, face, time) {
   c.restore();
   c.save();
   c.translate(x, y - 36);
-  circle(c, 0, 0, 10, '#f1c9a5');
-  c.drawImage(face, -9, -9, 18, 18);
+  circle(c, 0, 0, 11, '#f1c9a5');
+  if (face._cut) c.drawImage(face, -14, -14, 28, 28); else c.drawImage(face, -10, -10, 20, 20);
   c.restore();
   // gotitas de sudor
   if (Math.floor(time * 4) % 2 === 0) {
