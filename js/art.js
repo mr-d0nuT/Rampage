@@ -2,14 +2,22 @@
 // Dibujo de los monstruos (con la cara de la foto), humanos y procesado de caras.
 
 const MONSTERS = [
-  { id: 'kongo', name: 'KONGO', species: 'Gorila', type: 'ape',
-    body: '#8a5228', belly: '#c8956a', dark: '#4a2810' },
-  { id: 'liza', name: 'LIZA', species: 'Lagarta', type: 'lizard',
-    body: '#3fae3a', belly: '#e8c840', dark: '#1d6a1f' },
-  { id: 'lobo', name: 'LOBO', species: 'Hombre lobo', type: 'wolf',
-    body: '#6a78a8', belly: '#dfe0ea', dark: '#3a4470' },
+  { id: 'kongo', name: 'KONGO', species: 'Gorila', type: 'ape', portrait: 'img/george.webp',
+    body: '#6e4a30', belly: '#8a6a58', dark: '#3e2818' },
+  { id: 'liza', name: 'LIZA', species: 'Lagarta', type: 'lizard', portrait: 'img/lizzie.webp',
+    body: '#3f7c36', belly: '#a8b850', dark: '#1f4a1c' },
+  { id: 'lobo', name: 'LOBO', species: 'Hombre lobo', type: 'wolf', portrait: 'img/ralph.webp',
+    body: '#7a7c82', belly: '#c4c4c8', dark: '#45474d' },
 ];
 const PLAYER_COLORS = ['#ffcc00', '#29d4ff'];
+
+// Retratos de los monstruos (cabeza sin fondo): se usan cuando el jugador no pone foto.
+MONSTERS.forEach(m => {
+  const img = new Image();
+  img.onload = () => { m._defaultFace = null; }; // se regenera la cara por defecto con el retrato
+  img.src = m.portrait;
+  m._portraitImg = img;
+});
 const FACE_SIZE = 160;
 
 // Recorta un cuadrado de una imagen/vídeo, lo hace circular y le da un toque "arcade".
@@ -56,6 +64,14 @@ function faceFromImage(img) {
 // monstruo, al estilo del arcade original. Se marca con _monster para que en el
 // juego se dibuje animada (mirando a su lado, abriendo la boca…).
 function defaultFace(m) {
+  const pi = m._portraitImg;
+  if (pi && pi.complete && pi.naturalWidth) {
+    const c = document.createElement('canvas');
+    c.width = c.height = pi.naturalWidth;
+    c.getContext('2d').drawImage(pi, 0, 0);
+    c._portrait = true;
+    return c;
+  }
   const c = document.createElement('canvas');
   c.width = c.height = FACE_SIZE;
   const g = c.getContext('2d');
@@ -233,6 +249,17 @@ function drawHead(c, cx, cy, r, m, face, opts = {}) {
   if (eat > 0) {
     const k = Math.sin(time * 40) * 0.12;
     c.scale(1 + k, 1 - k);
+  }
+  if (face._portrait) { // retrato del monstruo (sin foto): ya trae orejas, cresta…
+    const ps = r * 3.3;
+    c.drawImage(face, -ps / 2, -ps * 0.52, ps, ps);
+    if (hurt) {
+      c.globalAlpha = 0.4;
+      c.fillStyle = '#ff2020'; c.beginPath(); c.ellipse(0, -ps * 0.04, ps * 0.4, ps * 0.44, 0, 0, Math.PI * 2); c.fill();
+      c.globalAlpha = 1;
+    }
+    c.restore();
+    return;
   }
   // La foto ES la cabeza: grande, sin marco, y alrededor los rasgos del personaje.
   const fs = r * (face._cut === 'oval' ? 2.7 : 3.0);
@@ -436,7 +463,7 @@ function drawHuman(c, x, y, f, anim, face, time) {
   c.save();
   c.translate(x, y - 36);
   circle(c, 0, 0, 11, '#f1c9a5');
-  if (face._monster) { // sin foto: cara humana sencilla
+  if (face._monster || face._portrait) { // sin foto: cara humana sencilla
     c.fillStyle = '#5a3a20'; c.beginPath(); c.arc(0, -3, 11, Math.PI, 0); c.fill();
     circle(c, -4, 0, 1.5, '#222'); circle(c, 4, 0, 1.5, '#222');
     c.fillStyle = '#a03030'; c.beginPath(); c.ellipse(0, 6, 3, 2, 0, 0, Math.PI * 2); c.fill();
