@@ -12,8 +12,8 @@ y la banda sonora está en `music/`.
 ## ▶️ Cómo jugar
 
 ### Opción A: online (GitHub Pages)
-Abre **https://mr-d0nut.github.io/Rampage/**. La web se publica desde la rama `gh-pages`
-(para actualizarla: `git push origin main:gh-pages`).
+Abre **https://mr-d0nut.github.io/Rampage/**. Cada cambio en `main` se publica solo: la acción
+`.github/workflows/publicar-web.yml` lo copia a la rama `gh-pages`, que es la que sirve GitHub Pages.
 
 > Como GitHub Pages sirve el juego por **https**, el navegador te deja usar la webcam.
 
