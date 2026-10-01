@@ -2,11 +2,11 @@
 // Dibujo de los monstruos (con la cara de la foto), humanos y procesado de caras.
 
 const MONSTERS = [
-  { id: 'kongo', name: 'KONGO', species: 'Gorila', type: 'ape', portrait: 'img/george.webp',
+  { id: 'kongo', name: 'KONGO', species: 'Gorila', type: 'ape', portrait: 'img/george.webp', mouth: 0.77,
     body: '#6e4a30', belly: '#8a6a58', dark: '#3e2818' },
-  { id: 'liza', name: 'LIZA', species: 'Lagarta', type: 'lizard', portrait: 'img/lizzie.webp',
+  { id: 'liza', name: 'LIZA', species: 'Lagarta', type: 'lizard', portrait: 'img/lizzie.webp', mouth: 0.62,
     body: '#3f7c36', belly: '#a8b850', dark: '#1f4a1c' },
-  { id: 'lobo', name: 'LOBO', species: 'Hombre lobo', type: 'wolf', portrait: 'img/ralph.webp',
+  { id: 'lobo', name: 'LOBO', species: 'Hombre lobo', type: 'wolf', portrait: 'img/ralph.webp', mouth: 0.63,
     body: '#7a7c82', belly: '#c4c4c8', dark: '#45474d' },
 ];
 const PLAYER_COLORS = ['#ffcc00', '#29d4ff'];
@@ -234,6 +234,21 @@ function circle(c, x, y, r, color) {
 }
 
 // Cabeza: la foto del jugador enmarcada con pelo/escamas/orejas según el monstruo.
+// Masticar: se parte la imagen a la altura de la boca y la mandíbula de abajo
+// sube y baja, dejando ver el interior de la boca.
+function drawChewing(c, img, x, y, w, h, frac, open) {
+  const split = y + h * frac;
+  c.fillStyle = '#3a0505';
+  c.beginPath(); c.ellipse(x + w / 2, split + open / 2, w * 0.2, open / 2 + 1, 0, 0, Math.PI * 2); c.fill();
+  c.fillStyle = '#9a1a1a';
+  c.beginPath(); c.ellipse(x + w / 2, split + open * 0.75, w * 0.11, open / 4 + 0.5, 0, 0, Math.PI * 2); c.fill();
+  c.save(); c.beginPath(); c.rect(x - 2, y - 2, w + 4, h * frac + 2); c.clip();
+  c.drawImage(img, x, y, w, h); c.restore();
+  c.save(); c.beginPath(); c.rect(x - 2, split + open, w + 4, h); c.clip();
+  c.drawImage(img, x, y + open, w, h); c.restore();
+}
+const chewOpen = (eat, time, size) => (eat > 0 ? (Math.sin(time * 24) * 0.5 + 0.5) * size * 0.09 : 0);
+
 function drawHead(c, cx, cy, r, m, face, opts = {}) {
   const { hurt = false, eat = 0, time = 0, tilt = 0 } = opts;
   if (face._monster) { // sin foto: cabeza de monstruo animada
@@ -246,13 +261,11 @@ function drawHead(c, cx, cy, r, m, face, opts = {}) {
   c.save();
   c.translate(cx, cy);
   c.rotate(tilt);
-  if (eat > 0) {
-    const k = Math.sin(time * 40) * 0.12;
-    c.scale(1 + k, 1 - k);
-  }
   if (face._portrait) { // retrato del monstruo (sin foto): ya trae orejas, cresta…
-    const ps = r * 3.3;
-    c.drawImage(face, -ps / 2, -ps * 0.52, ps, ps);
+    const ps = r * 3.35; // retrato de solo cabeza
+    const op = chewOpen(eat, time, ps);
+    if (op > 0.5) drawChewing(c, face, -ps / 2, -ps * 0.6, ps, ps, m.mouth || 0.7, op);
+    else c.drawImage(face, -ps / 2, -ps * 0.6, ps, ps);
     if (hurt) {
       c.globalAlpha = 0.4;
       c.fillStyle = '#ff2020'; c.beginPath(); c.ellipse(0, -ps * 0.04, ps * 0.4, ps * 0.44, 0, 0, Math.PI * 2); c.fill();
@@ -316,7 +329,9 @@ function drawHead(c, cx, cy, r, m, face, opts = {}) {
     c.closePath(); c.fill();
   }
   // la cara del jugador
-  if (face._cut) c.drawImage(face, -fs / 2, -fs / 2, fs, fs);
+  const op = chewOpen(eat, time, fs);
+  if (face._cut && op > 0.5) drawChewing(c, face, -fs / 2, -fs / 2, fs, fs, 0.72, op);
+  else if (face._cut) c.drawImage(face, -fs / 2, -fs / 2, fs, fs);
   else { // cara redonda (navegadores sin recorte): sin fondo de cuadrado
     c.save(); c.beginPath(); c.ellipse(0, 0, hx, hy * 0.95, 0, 0, Math.PI * 2); c.clip();
     c.drawImage(face, -hy, -hy, hy * 2, hy * 2); c.restore();
@@ -337,11 +352,30 @@ function drawHead(c, cx, cy, r, m, face, opts = {}) {
 // ---------------------------------------------------------------------------
 const PX = 2.2;              // tamaño en pantalla de cada píxel del sprite
 const BODY_SCALE = PX / 2;   // (compatibilidad con el alcance de los golpes)
-const HEAD_R = 21;
+const HEAD_R = 24;
 const SPR_W = 96, SPR_H = 80, FOOT_X = 40, FOOT_Y = 76;
-const sprBody = document.createElement('canvas'); sprBody.width = SPR_W; sprBody.height = SPR_H;
-const sprOut = document.createElement('canvas'); sprOut.width = SPR_W; sprOut.height = SPR_H;
-const sprTmp = document.createElement('canvas'); sprTmp.width = SPR_W; sprTmp.height = SPR_H;
+// Pixel art de verdad: el sprite se dibuja a menor resolución (PQ) y cada píxel
+// ocupa PX / PQ píxeles de pantalla (~3,4 px), con bordes nítidos y paleta cerrada.
+const PQ = 0.65;
+const QW = Math.ceil(SPR_W * PQ), QH = Math.ceil(SPR_H * PQ);
+const sprBody = document.createElement('canvas'); sprBody.width = QW; sprBody.height = QH;
+const sprOut = document.createElement('canvas'); sprOut.width = QW; sprOut.height = QH;
+const sprTmp = document.createElement('canvas'); sprTmp.width = QW; sprTmp.height = QH;
+const hexRGB = h => [parseInt(h.slice(1, 3), 16), parseInt(h.slice(3, 5), 16), parseInt(h.slice(5, 7), 16)];
+// Quita el suavizado: alfa todo o nada y cada píxel al color más cercano de la paleta
+function pixelize(g, palette) {
+  const img = g.getImageData(0, 0, QW, QH), d = img.data;
+  for (let i = 0; i < d.length; i += 4) {
+    if (d[i + 3] < 120) { d[i + 3] = 0; continue; }
+    let best = palette[0], bd = 1e9;
+    for (const p of palette) {
+      const dr = d[i] - p[0], dg = d[i + 1] - p[1], db = d[i + 2] - p[2], dd = dr * dr + dg * dg + db * db;
+      if (dd < bd) { bd = dd; best = p; }
+    }
+    d[i] = best[0]; d[i + 1] = best[1]; d[i + 2] = best[2]; d[i + 3] = 255;
+  }
+  g.putImageData(img, 0, 0);
+}
 
 function ell(g, x, y, rx, ry, col, rot = 0) { g.fillStyle = col; g.beginPath(); g.ellipse(x, y, rx, ry, rot, 0, Math.PI * 2); g.fill(); }
 function seg(g, pts, w, col) { // extremidad gruesa por varios puntos
@@ -463,20 +497,24 @@ function drawMonster(c, s, time) {
   const col = { body: m.body, belly: m.belly, dark: m.dark };
   const punching = s.punchT > 0;
   // 1) cuerpo en el sprite
-  const g = sprBody.getContext('2d');
-  g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, SPR_W, SPR_H);
+  const g = sprBody.getContext('2d', { willReadFrequently: true });
+  g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, QW, QH);
+  g.setTransform(PQ, 0, 0, PQ, 0, 0);
   const neck = drawBodySprite(g, s, m, col);
+  g.setTransform(1, 0, 0, 1, 0, 0);
+  if (!m._pal) m._pal = [m.body, m.belly, m.dark, '#e07a20', '#f0ece0', '#120a06', shade(m.belly, 0.75)].map(hexRGB);
+  pixelize(g, m._pal);
   // 2) contorno oscuro de 1 píxel alrededor
   const o = sprOut.getContext('2d');
-  o.clearRect(0, 0, SPR_W, SPR_H);
+  o.clearRect(0, 0, QW, QH);
   const t = sprTmp.getContext('2d');
-  t.globalCompositeOperation = 'source-over'; t.clearRect(0, 0, SPR_W, SPR_H);
+  t.globalCompositeOperation = 'source-over'; t.clearRect(0, 0, QW, QH);
   t.drawImage(sprBody, 0, 0);
-  t.globalCompositeOperation = 'source-in'; t.fillStyle = '#120a06'; t.fillRect(0, 0, SPR_W, SPR_H);
+  t.globalCompositeOperation = 'source-in'; t.fillStyle = '#120a06'; t.fillRect(0, 0, QW, QH);
   t.globalCompositeOperation = 'source-over';
   for (const [dx, dy] of [[-1, 0], [1, 0], [0, -1], [0, 1]]) o.drawImage(sprTmp, dx, dy);
   o.drawImage(sprBody, 0, 0);
-  if (hurt) { o.globalCompositeOperation = 'source-atop'; o.fillStyle = 'rgba(255,255,255,.85)'; o.fillRect(0, 0, SPR_W, SPR_H); o.globalCompositeOperation = 'source-over'; }
+  if (hurt) { o.globalCompositeOperation = 'source-atop'; o.fillStyle = 'rgba(255,255,255,.85)'; o.fillRect(0, 0, QW, QH); o.globalCompositeOperation = 'source-over'; }
   // 3) a pantalla, ampliado sin suavizado
   c.save();
   if (s.state !== 'climb') { c.fillStyle = 'rgba(0,0,0,.25)'; c.beginPath(); c.ellipse(s.x, s.y, 26, 5, 0, 0, Math.PI * 2); c.fill(); }
@@ -484,7 +522,7 @@ function drawMonster(c, s, time) {
   c.scale(s.f, 1);
   const smooth = c.imageSmoothingEnabled;
   c.imageSmoothingEnabled = false;
-  c.drawImage(sprOut, -FOOT_X * PX, -FOOT_Y * PX, SPR_W * PX, SPR_H * PX);
+  c.drawImage(sprOut, -FOOT_X * PX, -FOOT_Y * PX, QW * PX / PQ, QH * PX / PQ);
   c.imageSmoothingEnabled = smooth;
   c.restore();
   // 4) la cabeza (foto o retrato) sobre los hombros

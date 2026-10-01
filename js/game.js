@@ -198,7 +198,7 @@ function updateGrab(p, dt) {
   g.t += dt;
   if (!g.done && g.t >= GRAB_TIME * 0.8) {
     g.done = true;
-    heal(p, g.hp); p.eatT = 0.45; Sound.play('eat'); buzz(20);
+    heal(p, g.hp); p.eatT = 0.9; Sound.play('eat'); buzz(20);
     addScore(p, g.points, p.x, p.y - 150, (g.kind === 'soldier' ? '¡CRUNCH! +' : '¡ÑAM! +') + g.points);
   }
   if (g.t >= GRAB_TIME) p.grab = null;
@@ -228,7 +228,7 @@ function handleContent(cell, p, pos) {
     case 'person':
       startGrab(p, 'person', pos.x, pos.y, 8, 100); break;
     case 'food':
-      heal(p, 15); addScore(p, 50, pos.x, pos.y, '¡RICO! +15♥'); Sound.play('eat'); p.eatT = 0.45; break;
+      heal(p, 15); addScore(p, 50, pos.x, pos.y, '¡RICO! +15♥'); Sound.play('eat'); p.eatT = 0.9; break;
     case 'money':
       addScore(p, 500, pos.x, pos.y, '$ 500'); Sound.play('money'); break;
     case 'sniper':
