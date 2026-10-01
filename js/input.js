@@ -29,7 +29,9 @@ const Input = (() => {
   let padCount = 0;
   let anyPadPressed = false;
 
+  const typing = e => e.target && (e.target.tagName === 'INPUT' || e.target.tagName === 'TEXTAREA');
   window.addEventListener('keydown', e => {
+    if (typing(e)) return; // escribiendo el nombre: las teclas no controlan el juego
     if (GAME_KEYS.has(e.code)) e.preventDefault();
     if (!e.repeat) justDown.add(e.code);
     down.add(e.code);
@@ -64,6 +66,10 @@ const Input = (() => {
       p.prev = p.cur;
       const c = {};
       for (const a of ACTIONS) c[a] = !!(KEYMAPS[i][a] && KEYMAPS[i][a].some(k => down.has(k) || justDown.has(k)));
+      if (typeof TouchPad !== 'undefined' && TouchPad.enabled) {
+        const t = TouchPad.state(i);
+        for (const a in t) c[a] = c[a] || t[a];
+      }
       const pad = assign[i];
       if (pad) {
         const pc = readPad(pad);

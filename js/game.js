@@ -24,7 +24,7 @@ const SKIES = [
 // Estado global
 // ---------------------------------------------------------------------------
 const G = {
-  scene: 'title',            // title | setup | play | levelEnd | gameover
+  scene: 'intro',            // intro | title | setup | play | levelEnd | gameover
   paused: false,
   numPlayers: 1, titleSel: 0,
   setup: [{ monster: 0, face: null, faceSource: null }, { monster: 1, face: null, faceSource: null }],
@@ -169,6 +169,7 @@ function registerBreak(b, r) {
 function collapse(b) {
   b.collapsing = true;
   Sound.play('collapse');
+  buzz([60, 40, 90]);
   G.shake = Math.max(G.shake, 10);
   if (b.lastHit) addScore(b.lastHit, 1000, b.x + b.w / 2, roofY(b) - 20, '¡' + b.name.toUpperCase() + ' AL SUELO! +1000');
   for (const p of G.players) {
@@ -261,6 +262,7 @@ function makePlayer(i) {
   const m = MONSTERS[s.monster];
   return {
     i, m, face: s.face || m._defaultFace || (m._defaultFace = defaultFace(m)),
+    name: s.name || m.name,
     color: PLAYER_COLORS[i],
     x: i === 0 ? 150 : W - 150, y: -60, vx: 0, vy: 0, f: i === 0 ? 1 : -1,
     state: 'air', building: null, side: 1, health: MAX_HP, lives: 3, score: 0,
@@ -272,7 +274,7 @@ function makePlayer(i) {
 const isAlive = p => p.state !== 'dead' && !p.out;
 
 function monsterBox(p) {
-  return { x: p.x - 24, y: p.y - 113, w: 48, h: 113 };
+  return { x: p.x - 26, y: p.y - 130, w: 52, h: 130 };
 }
 
 function nearestMonster(x, y, maxDist = 9999) {
@@ -292,6 +294,7 @@ function hurt(p, n) {
   p.health -= n;
   p.hurtT = 0.12;
   Sound.play('hurt');
+  buzz(30);
   if (p.health <= 0) die(p);
 }
 
@@ -311,15 +314,28 @@ function die(p) {
   floater(p.x, p.y - 110, p.lives > 0 ? '¡AY!' : '¡FUERA!', p.color);
 }
 
+// Combos: golpes seguidos (sin pausa de más de 1,6 s) multiplican los puntos, hasta x5.
+const comboMult = p => Math.min(5, 1 + Math.floor((p.combo || 0) / 4));
+function comboHit(p) {
+  const before = comboMult(p);
+  p.combo = (p.combo || 0) + 1; p.comboT = 1.6;
+  const after = comboMult(p);
+  if (after > before) {
+    floater(p.x, p.y - 175, `¡COMBO x${after}!`, after >= 5 ? '#ff4040' : '#ffcc00');
+    Sound.play('money');
+  }
+}
 function addScore(p, n, x, y, text) {
   if (!p) return;
-  p.score += n;
-  if (x !== undefined) floater(x, y, text || ('+' + n), p.color);
+  const k = comboMult(p);
+  p.score += n * k;
+  if (x !== undefined) floater(x, y, (text || ('+' + n)) + (k > 1 ? ` x${k}` : ''), p.color);
 }
 
 function updatePlayer(p, dt) {
   if (p.out) return;
   p.punchT -= dt; p.punchCD -= dt; p.hurtT -= dt; p.invT -= dt; p.eatT -= dt;
+  if ((p.comboT -= dt) <= 0) p.combo = 0;
   if (p.shownScore < p.score) p.shownScore = Math.min(p.score, p.shownScore + Math.max(5, (p.score - p.shownScore) * 8 * dt));
 
   if (p.state === 'dead') return updateDead(p, dt);
@@ -493,7 +509,7 @@ function doPunch(p, U, D) {
       if (beside && punchWall(b, rowAt(b, fy), p.f, p)) { hit = true; break; }
     }
   }
-  if (hit) G.shake = Math.max(G.shake, 3);
+  if (hit) { G.shake = Math.max(G.shake, 3); buzz(14); comboHit(p); }
 }
 
 function updateDead(p, dt) {
@@ -756,7 +772,7 @@ function updatePlay(dt) {
   if (G.scene === 'play' && alive === 0) {
     G.scene = 'levelEnd'; G.sceneT = 0;
     Sound.play('level');
-    G.players.forEach(p => { if (!p.out) addScore(p, 2000 + Math.round(p.health) * 10); });
+    G.players.forEach(p => { if (!p.out) p.score += 2000 + Math.round(p.health) * 10; });
     G.enemies.forEach(e => { if (e.type === 'soldier') { e.state = 'walk'; e.dir = e.x < W / 2 ? -1 : 1; e.targetX = e.dir * 9999; } });
     G.banner = { text: '¡CIUDAD DESTRUIDA!', sub: 'Bonus: 2000 + vida × 10', t: 4 };
   }
@@ -994,8 +1010,8 @@ function drawPlayers() {
     ctx.globalAlpha = 1;
     // indicador de jugador
     ctx.fillStyle = p.color;
-    ctx.beginPath(); ctx.moveTo(p.x - 6, p.y - 140); ctx.lineTo(p.x + 6, p.y - 140); ctx.lineTo(p.x, p.y - 132); ctx.fill();
-    ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center'; ctx.fillText('J' + (p.i + 1), p.x, p.y - 143); ctx.textAlign = 'left';
+    ctx.beginPath(); ctx.moveTo(p.x - 6, p.y - 158); ctx.lineTo(p.x + 6, p.y - 158); ctx.lineTo(p.x, p.y - 150); ctx.fill();
+    ctx.font = 'bold 11px sans-serif'; ctx.textAlign = 'center'; ctx.fillText(p.name, p.x, p.y - 161); ctx.textAlign = 'left';
   }
 }
 
@@ -1017,8 +1033,8 @@ function drawHUD() {
     circle(ctx, x0 + 22, 22, 19, p.color);
     ctx.drawImage(p.face, x0 + 5, 5, 34, 34);
     if (p.out) { ctx.globalAlpha = 0.6; circle(ctx, x0 + 22, 22, 17, '#000'); ctx.globalAlpha = 1; }
-    text(`J${i + 1} ${p.m.name}`, x0 + 48, 17, 14, p.color, 'left', 3);
-    text(String(Math.floor(p.shownScore)).padStart(7, '0'), x0 + 160, 17, 15, '#fff', 'left', 3);
+    text(`J${i + 1} ${p.name}`, x0 + 48, 17, 14, p.color, 'left', 3);
+    text(String(Math.floor(p.shownScore)).padStart(7, '0'), x0 + 218, 17, 15, '#fff', 'right', 3);
     // vida
     ctx.fillStyle = '#300'; ctx.fillRect(x0 + 48, 24, 170, 12);
     const hp = clamp(p.health / MAX_HP, 0, 1);
@@ -1027,6 +1043,8 @@ function drawHUD() {
     ctx.strokeStyle = '#fff'; ctx.lineWidth = 1.5; ctx.strokeRect(x0 + 48, 24, 170, 12);
     // vidas
     for (let k = 0; k < Math.max(0, p.lives); k++) text('♥', x0 + 232 + k * 18, 36, 16, '#ff4060', 'left', 3);
+    const k = comboMult(p);
+    if (k > 1) text(`x${k}`, x0 + 248, 18, 18 + k * 2, k >= 5 ? '#ff4040' : '#ffcc00', 'left', 4);
     ctx.restore();
   });
   if (G.numPlayers === 1) text('1 JUGADOR', W - 20, 28, 14, '#aaa', 'right', 3);
@@ -1063,6 +1081,48 @@ function drawWorld() {
 // ---------------------------------------------------------------------------
 // Pantallas: título y game over
 // ---------------------------------------------------------------------------
+// Emblema de mr_donut (el mismo de la intro de mr_donut Battle Chess)
+const LOGO = new Image();
+LOGO.src = 'img/mr_donut.png';
+const logoReady = () => LOGO.complete && LOGO.naturalWidth > 0;
+
+const shineCanvas = document.createElement('canvas');
+function drawIntro() {
+  const t = G.sceneT;
+  ctx.fillStyle = '#05030a'; ctx.fillRect(0, 0, W, H);
+  const glow = ctx.createRadialGradient(W / 2, H / 2 - 20, 10, W / 2, H / 2 - 20, 380);
+  glow.addColorStop(0, `rgba(255,170,60,${0.35 * Math.min(1, t)})`); glow.addColorStop(1, 'rgba(0,0,0,0)');
+  ctx.fillStyle = glow; ctx.fillRect(0, 0, W, H);
+  if (logoReady()) {
+    // entra con rebote, luego respira
+    const e = Math.min(1, t / 0.9);
+    const k = e < 1 ? 0.2 + 0.8 * (1 - Math.pow(1 - e, 3)) * (1 + Math.sin(e * Math.PI) * 0.18) : 1 + Math.sin(t * 2.5) * 0.015;
+    const h = 300 * k, w = h * LOGO.naturalWidth / LOGO.naturalHeight;
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, t * 2.5) * Math.min(1, Math.max(0, (3.6 - t) * 2));
+    ctx.drawImage(LOGO, W / 2 - w / 2, H / 2 - 30 - h / 2, w, h);
+    // destello que cruza el emblema (solo sobre el dibujo, no sobre el fondo)
+    if (t > 1 && t < 1.8) {
+      const sc = shineCanvas;
+      sc.width = Math.ceil(w); sc.height = Math.ceil(h);
+      const sx = (t - 1) / 0.8 * (sc.width + 240) - 120;
+      const g = sc.getContext('2d');
+      g.drawImage(LOGO, 0, 0, sc.width, sc.height);
+      g.globalCompositeOperation = 'source-in';
+      const sh = g.createLinearGradient(sx - 60, 0, sx + 60, 0);
+      sh.addColorStop(0, 'rgba(255,255,255,0)'); sh.addColorStop(0.5, 'rgba(255,240,200,.6)'); sh.addColorStop(1, 'rgba(255,255,255,0)');
+      g.fillStyle = sh; g.fillRect(0, 0, sc.width, sc.height);
+      ctx.globalCompositeOperation = 'lighter';
+      ctx.drawImage(sc, W / 2 - w / 2, H / 2 - 30 - h / 2, w, h);
+      ctx.globalCompositeOperation = 'source-over';
+    }
+    ctx.globalAlpha *= Math.min(1, Math.max(0, (t - 1.1) * 2));
+    text('p r e s e n t a', W / 2, H / 2 + 165, 30, '#ffd426', 'center', 6);
+    ctx.restore();
+  }
+  if (t > 1.5) text('Pulsa una tecla o toca la pantalla', W / 2, H - 22, 14, 'rgba(255,255,255,.5)', 'center', 3);
+}
+
 let titleCity = false;
 function drawTitle() {
   if (!titleCity) { G.level = 1; makeCity(1); G.sky = SKIES[2]; titleCity = true; }
@@ -1072,9 +1132,13 @@ function drawTitle() {
   ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(0, 0, W, H);
 
   const wob = Math.sin(G.time * 3) * 3;
-  text('FACE', W / 2, 92 + wob, 56, '#fff', 'center', 10);
-  text('RAMPAGE', W / 2, 166 + wob, 92, '#ff3b2f', 'center', 12);
-  text('¡Tu cara, tu monstruo!', W / 2, 202, 22, '#ffcc00', 'center', 5);
+  if (logoReady()) {
+    const h = 70, w = h * LOGO.naturalWidth / LOGO.naturalHeight;
+    ctx.drawImage(LOGO, W / 2 - w / 2, 4, w, h);
+  }
+  text('FACE', W / 2, 114 + wob, 44, '#fff', 'center', 9);
+  text('RAMPAGE', W / 2, 180 + wob, 80, '#ff3b2f', 'center', 12);
+  text('¡Tu cara, tu monstruo!', W / 2, 210, 20, '#ffcc00', 'center', 5);
 
   // monstruos de muestra
   const faces = G.setup.map(s => s.face || MONSTERS[s.monster]._defaultFace || (MONSTERS[s.monster]._defaultFace = defaultFace(MONSTERS[s.monster])));
@@ -1088,7 +1152,7 @@ function drawTitle() {
     if (sel) { ctx.fillStyle = 'rgba(255,204,0,.2)'; ctx.fillRect(W / 2 - 150, y - 30, 300, 40); }
     text((sel ? '▶ ' : '') + o + (sel ? ' ◀' : ''), W / 2, y, sel ? 32 : 26, sel ? '#ffcc00' : '#ccc', 'center', 5);
   });
-  text('ENTER / ESPACIO / botón A para empezar', W / 2, 368, 15, '#fff', 'center', 3);
+  text(TouchPad.enabled ? 'Toca una opción para empezar' : 'ENTER / ESPACIO / botón A para empezar', W / 2, 368, 15, '#fff', 'center', 3);
 
   // controles
   ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(W / 2 - 300, 384, 600, 112);
@@ -1115,12 +1179,12 @@ function drawGameOver() {
     const cx = G.players.length === 1 ? W / 2 : W / 2 + (i === 0 ? -170 : 170);
     circle(ctx, cx, 290, 58, p.color);
     ctx.drawImage(p.face, cx - 54, 236, 108, 108);
-    text(`JUGADOR ${i + 1}`, cx, 378, 22, p.color, 'center', 4);
+    text(p.name, cx, 378, 22, p.color, 'center', 4);
     text(String(p.score), cx, 412, 34, '#fff', 'center', 5);
   });
   if (G.players.length === 2) {
     const [a, b] = G.players;
-    const msg = a.score === b.score ? '¡EMPATE!' : `¡GANA EL JUGADOR ${a.score > b.score ? 1 : 2}!`;
+    const msg = a.score === b.score ? '¡EMPATE!' : `¡GANA ${(a.score > b.score ? a : b).name}!`;
     text(msg, W / 2, 300, 26, '#ffcc00', 'center', 5);
   }
   if (G.sceneT > 1.5 && Math.floor(G.time * 2) % 2) text('Pulsa ENTER o un botón para volver al menú', W / 2, 480, 20, '#fff', 'center', 4);
@@ -1129,7 +1193,9 @@ function drawGameOver() {
 function drawPause() {
   ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(0, 0, W, H);
   text('PAUSA', W / 2, H / 2 - 10, 64, '#fff', 'center', 8);
-  text('P / ESC / START para continuar · Q para salir al menú', W / 2, H / 2 + 34, 18, '#ddd', 'center', 4);
+  text('P / ESC / START (o toca la pantalla) para continuar · Q para salir', W / 2, H / 2 + 34, 18, '#ddd', 'center', 4);
+  ctx.fillStyle = 'rgba(200,40,30,.9)'; ctx.fillRect(W / 2 - 90, H / 2 + 72, 180, 48);
+  text('SALIR AL MENÚ', W / 2, H / 2 + 103, 20, '#fff', 'center', 4);
 }
 
 // ---------------------------------------------------------------------------
@@ -1150,6 +1216,14 @@ function update(dt) {
   if (G.shake > 0) G.shake = Math.max(0, G.shake - dt * 30);
 
   switch (G.scene) {
+    case 'intro': {
+      G.sceneT += dt;
+      Sound.playMusic('title');
+      const skip = Input.anyKey() || Input.anyPadPressedEdge || TouchPad.consumeTap() || G.clicked;
+      G.clicked = false;
+      if (G.sceneT > 3.8 || (skip && G.sceneT > 0.3)) { G.scene = 'title'; G.sceneT = 0; TouchPad.clearTaps(); Input.endFrame(); }
+      break;
+    }
     case 'title': {
       Sound.playMusic('title');
       Input.numPlayers = G.titleSel + 1;
@@ -1158,8 +1232,15 @@ function update(dt) {
       const dn = Input.pressed(0, 'down') || Input.pressed(1, 'down') || Input.key('Digit2');
       if (up && G.titleSel !== 0) { G.titleSel = 0; Sound.play('select'); }
       if (dn && G.titleSel !== 1) { G.titleSel = 1; Sound.play('select'); }
-      if (anyConfirm() || Input.pressed(0, 'punch') || Input.pressed(0, 'jump') || Input.pressed(1, 'punch') || Input.pressed(1, 'jump')) {
+      let tapStart = false;
+      for (let t; (t = TouchPad.consumeTap());) { // móvil: tocar una opción
+        if (t.y > 228 && t.y < 284) G.titleSel = 0;
+        else if (t.y > 284 && t.y < 336) G.titleSel = 1;
+        tapStart = true;
+      }
+      if (tapStart || anyConfirm() || Input.pressed(0, 'punch') || Input.pressed(0, 'jump') || Input.pressed(1, 'punch') || Input.pressed(1, 'jump')) {
         G.numPlayers = G.titleSel + 1;
+        TouchPad.numPlayers = G.numPlayers;
         Sound.play('confirm');
         G.scene = 'setup';
         Setup.open(G.numPlayers, G.setup, cancelled => {
@@ -1175,10 +1256,19 @@ function update(dt) {
       break;
     case 'play':
     case 'levelEnd': {
-      const pausePressed = Input.key('KeyP') || Input.key('Escape') || Input.pressed(0, 'start') || Input.pressed(1, 'start');
-      if (pausePressed) { G.paused = !G.paused; Sound.pauseMusic(G.paused); }
+      let pausePressed = Input.key('KeyP') || Input.key('Escape') || Input.pressed(0, 'start') || Input.pressed(1, 'start');
+      let quit = Input.key('KeyQ') && G.paused;
+      for (let t; (t = TouchPad.consumeTap());) {
+        if (t.pause) pausePressed = true;
+        else if (G.paused) {
+          if (Math.abs(t.x - W / 2) < 90 && Math.abs(t.y - (H / 2 + 96)) < 26) quit = true;
+          else pausePressed = true;
+        }
+      }
+      if (portrait() && !G.paused) pausePressed = true; // móvil en vertical: pausa automática
+      if (pausePressed) { G.paused = !G.paused; Sound.pauseMusic(G.paused); TouchPad.releaseAll(); }
       if (G.paused) {
-        if (Input.key('KeyQ')) { G.paused = false; G.scene = 'title'; titleCity = false; Sound.pauseMusic(false); }
+        if (quit) { G.paused = false; G.scene = 'title'; titleCity = false; Sound.pauseMusic(false); TouchPad.clearTaps(); }
         break;
       }
       updatePlay(dt);
@@ -1187,26 +1277,51 @@ function update(dt) {
     case 'gameover':
       G.sceneT += dt;
       updateParticles(dt);
-      if (G.sceneT > 1.5 && (anyConfirm() || Input.pressed(0, 'punch') || Input.pressed(1, 'punch'))) {
-        G.scene = 'title'; titleCity = false; Sound.play('confirm');
+      const tapped = !!TouchPad.consumeTap();
+      if (G.sceneT > 1.5 && (tapped || anyConfirm() || Input.pressed(0, 'punch') || Input.pressed(1, 'punch'))) {
+        G.scene = 'title'; titleCity = false; Sound.play('confirm'); TouchPad.clearTaps();
       }
       break;
   }
 }
 
 function render() {
+  document.body.classList.toggle('in-game', TouchPad.enabled && (G.scene === 'play' || G.scene === 'levelEnd') && !G.paused);
   const dpr = window.devicePixelRatio || 1;
   ctx.setTransform(viewScale * dpr, 0, 0, viewScale * dpr, 0, 0);
   ctx.imageSmoothingEnabled = true;
   switch (G.scene) {
+    case 'intro': drawIntro(); break;
     case 'title': case 'setup': drawTitle(); break;
     case 'play': case 'levelEnd':
       drawWorld(); drawHUD(); drawBanner();
+      TouchPad.draw(ctx, PLAYER_COLORS);
       if (G.paused) drawPause();
       break;
     case 'gameover': drawGameOver(); break;
   }
   drawSoundBadge();
+  if (portrait()) drawRotateHint();
+}
+
+// En móvil se juega en horizontal.
+function portrait() {
+  return TouchPad.enabled && window.innerHeight > window.innerWidth && G.scene !== 'setup';
+}
+function drawRotateHint() {
+  ctx.fillStyle = 'rgba(0,0,0,.85)'; ctx.fillRect(0, 0, W, H);
+  const a = Math.sin(G.time * 3) * 0.5;
+  ctx.save(); ctx.translate(W / 2, H / 2 - 40); ctx.rotate(a);
+  ctx.strokeStyle = '#fff'; ctx.lineWidth = 6; ctx.strokeRect(-40, -70, 80, 140);
+  circle(ctx, 0, 56, 6, '#fff');
+  ctx.restore();
+  text('¡Gira el móvil! 🔄', W / 2, H / 2 + 90, 54, '#ffcc00', 'center', 8);
+  text('Face Rampage se juega en horizontal', W / 2, H / 2 + 140, 28, '#fff', 'center', 5);
+}
+
+// Vibración en móvil (golpes, derrumbes…)
+function buzz(ms) {
+  if (TouchPad.enabled && navigator.vibrate) { try { navigator.vibrate(ms); } catch (e) { /* nada */ } }
 }
 
 // Aviso de sonido: Safari/Mac no deja sonar nada hasta pulsar una tecla o hacer clic.
@@ -1231,6 +1346,8 @@ function resize() {
   canvas.height = Math.floor(H * viewScale * dpr);
 }
 window.addEventListener('resize', resize);
+canvas.addEventListener('pointerdown', e => { if (e.pointerType !== 'touch') G.clicked = true; });
+TouchPad.attach(canvas, W, H, () => (G.scene === 'play' || G.scene === 'levelEnd') && !G.paused);
 resize();
 
 // El audio solo puede arrancar tras una interacción del usuario.

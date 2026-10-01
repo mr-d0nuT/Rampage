@@ -27,6 +27,16 @@ python3 -m http.server 8000
 También puedes abrir `index.html` con doble clic. El juego funciona, pero algunos navegadores
 no permiten usar la cámara desde `file://`; en ese caso usa **📁 Subir imagen** o la opción B.
 
+## 📱 En el móvil o la tablet
+- Abre la web en el móvil, en **horizontal**. Al primer toque se pone a pantalla completa (en Android también fija la orientación).
+- **Joystick flotante** a la izquierda (aparece donde pongas el pulgar) y botones **GOLPE** y **SALTO** a la derecha.
+- En una **tablet** pueden jugar **2 jugadores**: cada uno tiene joystick y botones en su lado de la pantalla.
+- Vibra con los golpes, los daños y los derrumbes. Si pones el móvil en vertical, el juego se pausa.
+- Se puede **instalar como app**: "Añadir a pantalla de inicio" (iPhone: botón Compartir; Android: menú ⋮).
+
+## 🔥 Combos
+Golpes seguidos (sin parar más de 1,6 s) multiplican los puntos: **x2, x3, x4 y hasta x5**.
+
 ## 📸 La foto (con recorte automático de la cara)
 - Elige **1 o 2 jugadores**, después cada jugador (por turnos) elige su monstruo y pulsa **Hacer foto**:
   hay una cuenta atrás de 3 segundos.
@@ -34,6 +44,10 @@ no permiten usar la cámara desde `file://`; en ese caso usa **📁 Subir imagen
   ejecutándose en tu navegador), **recorta solo el óvalo de la cara y elimina el fondo**, y la pega en la cabeza del monstruo.
 - El detector se descarga la primera vez (unos 4 MB). Sin conexión, se usa un óvalo difuminado del centro de la foto.
 - Antes de hacer la foto ya ves al monstruo **con tu cara en directo**.
+- La foto **es la cabeza** del monstruo: se ve grande, con los rasgos del personaje alrededor
+  (melena y orejas del gorila, cresta del lagarto, orejas y pelo erizado del lobo).
+- Escribe **tu nombre**: sale en el marcador, encima de tu monstruo y en la pantalla final.
+- **Sin foto**, los monstruos llevan su cabeza de monstruo, al estilo del arcade original.
 - Si no te gusta, **↺ Repetir**. También puedes **📁 Subir imagen** (en el móvil abre la cámara) o jugar **🙈 Sin foto**
   (el monstruo lleva una cara de monstruo de serie).
 - Las fotos **no salen de tu ordenador**: se procesan en el navegador y no se guardan ni se envían a ningún sitio.
@@ -113,8 +127,15 @@ js/art.js         dibujo de monstruos y procesado de la foto
 js/facecut.js     recorte automático de la cara (MediaPipe)
 js/landmarks.js   edificios emblemáticos de cada ciudad
 js/setup.js       cámara, foto y elección de monstruo
+js/touch.js       controles táctiles (joystick y botones)
 js/game.js        lógica del juego (edificios, enemigos, niveles, HUD)
+img/mr_donut.png  emblema de mr_donut (intro y título)
+icons/            iconos de la app
 ```
+
+## 🍩 mr_donut
+Un juego de **mr_d0nuT**: intro con el emblema de mr_donut (el mismo de *mr_donut Battle Chess*) y el distintivo
+flotante con los datos de contacto.
 
 ## ⚖️ Aviso
 Proyecto de fans sin ánimo de lucro, inspirado en *Rampage* (Bally Midway, 1986).

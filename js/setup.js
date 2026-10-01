@@ -7,6 +7,7 @@ const Setup = (() => {
   const preview = $('monsterPreview'), pctx = preview.getContext('2d');
   const btnPhoto = $('btnPhoto'), btnRetake = $('btnRetake'), btnOk = $('btnOk');
   const btnNoPhoto = $('btnNoPhoto'), fileInput = $('fileInput'), faceStatus = $('faceStatus');
+  const nameInput = $('playerName');
   let liveDetected = false;
 
   let stream = null, camOK = false, active = false;
@@ -73,7 +74,9 @@ const Setup = (() => {
     hint.innerHTML =
       `Cambiar monstruo: <kbd>${idx === 0 ? 'A' : '←'}</kbd> <kbd>${idx === 0 ? 'D' : '→'}</kbd><br>` +
       `Foto: <kbd>${L.punch}</kbd> o <kbd>Espacio</kbd> · Listo: <kbd>${L.jump}</kbd> o <kbd>Enter</kbd><br>` +
-      `<small>Con mando: X/□ = foto · A/✕ = listo</small>`;
+      `<small>Con mando: X/□ = foto · A/✕ = listo · Haz clic en "Tu nombre" para escribirlo</small>`;
+    nameInput.value = d.name || '';
+    nameInput.placeholder = MONSTERS[d.monster].name;
     btnOk.textContent = idx < total - 1 ? '✔ ¡LISTO! → Jugador 2' : '✔ ¡A DESTROZAR!';
     refresh();
   }
@@ -104,7 +107,7 @@ const Setup = (() => {
       if (n > 0) { countdownEl.textContent = n; Sound.play('beep'); return; }
       clearInterval(iv);
       countdownEl.textContent = '';
-      captureWithRetry(8, performance.now() + 8000);
+      captureWithRetry(25, performance.now() + 8000);
     }, 700);
   }
 
@@ -144,6 +147,7 @@ const Setup = (() => {
 
   function next() {
     if (counting) return;
+    nameInput.blur();
     Sound.play('confirm');
     idx++;
     if (idx < total) { renderPlayer(); return; }
@@ -157,6 +161,14 @@ const Setup = (() => {
     Sound.play('select');
     renderPlayer();
   }
+
+  nameInput.addEventListener('input', () => {
+    if (data) data[idx].name = nameInput.value.trim().toUpperCase().slice(0, 10);
+  });
+  nameInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') { e.preventDefault(); nameInput.blur(); next(); }
+    else if (e.key === 'Escape') nameInput.blur();
+  });
 
   fileInput.addEventListener('change', () => {
     const file = fileInput.files && fileInput.files[0];
@@ -215,9 +227,10 @@ const Setup = (() => {
     let face = d.face;
     if (!face && camOK && d.faceSource !== 'none') {
       liveT -= dt;
-      if (liveT <= 0 || !liveFace) {
-        const r = FaceCut.fromVideo(video, true);
-        if (r) { liveFace = r.face; liveDetected = r.detected; }
+      if (liveT <= 0) {
+        // mientras carga el detector se enseña la cabeza del monstruo, no la imagen entera
+        const r = FaceCut.fromVideo(video, FaceCut.status === 'failed');
+        if (r) { liveFace = r.face; liveDetected = r.detected; } else { liveFace = null; liveDetected = false; }
         liveT = 0.1;
       }
       face = liveFace;
@@ -225,10 +238,10 @@ const Setup = (() => {
     if (!face) face = m._defaultFace || (m._defaultFace = defaultFace(m));
     pctx.setTransform(1, 0, 0, 1, 0, 0);
     pctx.clearRect(0, 0, preview.width, preview.height);
-    pctx.setTransform(1.75, 0, 0, 1.75, 0, 0);
+    pctx.setTransform(1.45, 0, 0, 1.45, 0, 0);
     const punch = (time % 1.6) > 1.3;
     drawMonster(pctx, {
-      x: 68, y: 132, f: 1, state: 'ground', anim: time * 6,
+      x: 74, y: 158, f: 1, state: 'ground', anim: time * 6,
       punchT: punch ? 0.1 : 0, punchDir: 'side', hurtT: 0, eatT: 0, m, face,
     }, time);
   }

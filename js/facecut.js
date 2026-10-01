@@ -133,7 +133,7 @@ const FaceCut = (() => {
     o.globalCompositeOperation = 'destination-in';
     o.drawImage(mask, 0, 0);
     o.globalCompositeOperation = 'source-over';
-    out._cut = true;
+    out._cut = 'oval';
     return out;
   }
 

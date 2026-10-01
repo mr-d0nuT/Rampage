@@ -3,11 +3,11 @@
 
 const MONSTERS = [
   { id: 'kongo', name: 'KONGO', species: 'Gorila', type: 'ape',
-    body: '#7b4a2b', belly: '#c48d5c', dark: '#43260f' },
+    body: '#8a5228', belly: '#c8956a', dark: '#4a2810' },
   { id: 'liza', name: 'LIZA', species: 'Lagarta', type: 'lizard',
-    body: '#3d9b3a', belly: '#c4df73', dark: '#1f5a1d' },
+    body: '#3fae3a', belly: '#e8c840', dark: '#1d6a1f' },
   { id: 'lobo', name: 'LOBO', species: 'Hombre lobo', type: 'wolf',
-    body: '#7d8094', belly: '#cfd0dc', dark: '#43455a' },
+    body: '#6a78a8', belly: '#dfe0ea', dark: '#3a4470' },
 ];
 const PLAYER_COLORS = ['#ffcc00', '#29d4ff'];
 const FACE_SIZE = 160;
@@ -52,34 +52,136 @@ function faceFromImage(img) {
   return processFace(img, (w - s) / 2, sy, s, false);
 }
 
-// Cara de monstruo por defecto (si el jugador no se hace foto).
+// Cara de monstruo por defecto (si el jugador no se hace foto): la cabeza del
+// monstruo, al estilo del arcade original. Se marca con _monster para que en el
+// juego se dibuje animada (mirando a su lado, abriendo la boca…).
 function defaultFace(m) {
   const c = document.createElement('canvas');
   c.width = c.height = FACE_SIZE;
   const g = c.getContext('2d');
-  const S = FACE_SIZE;
-  g.fillStyle = m.belly;
-  g.beginPath(); g.arc(S / 2, S / 2, S / 2, 0, Math.PI * 2); g.fill();
-  // ojos
-  for (const ex of [0.33, 0.67]) {
-    g.fillStyle = '#fff';
-    g.beginPath(); g.ellipse(S * ex, S * 0.42, S * 0.12, S * 0.14, 0, 0, Math.PI * 2); g.fill();
-    g.fillStyle = '#111';
-    g.beginPath(); g.arc(S * ex + S * 0.02, S * 0.45, S * 0.06, 0, Math.PI * 2); g.fill();
-  }
-  // cejas enfadadas
-  g.strokeStyle = m.dark; g.lineWidth = S * 0.06; g.lineCap = 'round';
-  g.beginPath(); g.moveTo(S * 0.2, S * 0.24); g.lineTo(S * 0.43, S * 0.32); g.stroke();
-  g.beginPath(); g.moveTo(S * 0.8, S * 0.24); g.lineTo(S * 0.57, S * 0.32); g.stroke();
-  // boca con dientes
-  g.fillStyle = '#5a0b0b';
-  g.beginPath(); g.ellipse(S / 2, S * 0.74, S * 0.24, S * 0.12, 0, 0, Math.PI * 2); g.fill();
-  g.fillStyle = '#fff';
-  for (let i = 0; i < 5; i++) {
-    const x = S * 0.3 + i * S * 0.1;
-    g.beginPath(); g.moveTo(x, S * 0.64); g.lineTo(x + S * 0.08, S * 0.64); g.lineTo(x + S * 0.04, S * 0.73); g.fill();
-  }
+  g.fillStyle = '#1d3a5c'; // fondo azul como los retratos del original
+  g.beginPath(); g.arc(FACE_SIZE / 2, FACE_SIZE / 2, FACE_SIZE / 2, 0, Math.PI * 2); g.fill();
+  drawMonsterHead(g, FACE_SIZE / 2, FACE_SIZE * 0.58, 46, m, { f: 1, open: 0.7, front: true });
+  c._monster = true;
   return c;
+}
+
+function eyeGlow(c, x, y, rr) {
+  circle(c, x, y, rr * 1.35, 'rgba(255,40,0,.35)');
+  circle(c, x, y, rr, '#e8200f');
+  circle(c, x, y, rr * 0.45, '#ffd84a');
+}
+function fangs(c, x0, x1, y, h, dir, n, color = '#fbf6e8') {
+  // fila de dientes entre x0 y x1; dir 1 = hacia abajo, -1 = hacia arriba
+  c.fillStyle = color;
+  const w = (x1 - x0) / n;
+  for (let i = 0; i < n; i++) {
+    const big = i === 0 || i === n - 1;
+    const hh = big ? h * 1.7 : h;
+    c.beginPath(); c.moveTo(x0 + i * w, y); c.lineTo(x0 + (i + 0.5) * w, y + dir * hh); c.lineTo(x0 + (i + 1) * w, y); c.fill();
+  }
+}
+
+// Cabeza de monstruo dibujada por código. u = unidad de escala (r/24).
+// opts.f = hacia dónde mira, opts.open = boca abierta 0..1
+function drawMonsterHead(c, cx, cy, r, m, opts = {}) {
+  const u = r / 24, f = opts.f || 1, o = Math.max(0, Math.min(1, opts.open ?? 0.3));
+  const hurt = opts.hurt;
+  c.save();
+  c.translate(cx, cy);
+  c.scale(u * (m.type === 'ape' || opts.front ? 1 : f), u);
+  const body = hurt ? '#ffffff' : m.body, dark = hurt ? '#ffb0b0' : m.dark;
+  if (m.type === 'ape') {
+    // pelo
+    c.fillStyle = dark;
+    c.beginPath(); c.ellipse(0, -2, 27, 27, 0, 0, Math.PI * 2); c.fill();
+    for (let i = -3; i <= 3; i++) {
+      c.beginPath(); c.moveTo(i * 7 - 5, -22); c.lineTo(i * 8, -33 + Math.abs(i) * 2); c.lineTo(i * 7 + 5, -22); c.fill();
+    }
+    c.fillStyle = body;
+    c.beginPath(); c.ellipse(0, -3, 24, 24, 0, 0, Math.PI * 2); c.fill();
+    // orejas
+    circle(c, -24, 0, 6, dark); circle(c, 24, 0, 6, dark);
+    circle(c, -24, 0, 3, '#c8956a'); circle(c, 24, 0, 3, '#c8956a');
+    // máscara de la cara (piel clara) y morro
+    c.fillStyle = hurt ? '#ffd0d0' : '#c8956a';
+    c.beginPath(); c.ellipse(0, 2, 18, 19, 0, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.ellipse(0, 10 + o * 3, 15, 10 + o * 4, 0, 0, Math.PI * 2); c.fill();
+    // ceja prominente
+    c.fillStyle = dark;
+    c.beginPath(); c.moveTo(-19, -9); c.quadraticCurveTo(0, -18, 19, -9); c.quadraticCurveTo(0, -5, -19, -9); c.fill();
+    eyeGlow(c, -7, -4, 3.2); eyeGlow(c, 7, -4, 3.2);
+    // nariz
+    c.fillStyle = '#5a3420';
+    c.beginPath(); c.ellipse(-3, 4, 2.4, 1.8, 0.3, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.ellipse(3, 4, 2.4, 1.8, -0.3, 0, Math.PI * 2); c.fill();
+    // boca abierta con colmillos
+    c.fillStyle = '#6a0e0e';
+    c.beginPath(); c.ellipse(0, 12 + o * 3, 11, 2.5 + o * 6, 0, 0, Math.PI * 2); c.fill();
+    fangs(c, -10, 10, 9 + o * 0.5, 3.5, 1, 5);
+    fangs(c, -9, 9, 15 + o * 6.5, 3, -1, 5);
+  } else if (m.type === 'lizard') {
+    // perfil mirando a +x (se refleja según f)
+    const jaw = o * 0.45;
+    // cresta / cuerno amarillo
+    c.fillStyle = '#f0c020';
+    c.beginPath(); c.moveTo(-6, -18); c.lineTo(-2, -34); c.lineTo(4, -17); c.fill();
+    c.fillStyle = '#e07020';
+    c.beginPath(); c.moveTo(-16, -12); c.lineTo(-20, -24); c.lineTo(-8, -15); c.fill();
+    // mandíbula inferior (gira al abrir)
+    c.save(); c.translate(-6, 6); c.rotate(jaw);
+    c.fillStyle = hurt ? '#ffe0a0' : '#e8c840';
+    c.beginPath(); c.moveTo(0, -2); c.lineTo(32, 0); c.quadraticCurveTo(30, 9, 18, 10); c.lineTo(-4, 9); c.closePath(); c.fill();
+    c.fillStyle = '#7a1010'; c.fillRect(2, -3, 28, 3);
+    fangs(c, 4, 30, -2, 3, -1, 6);
+    c.restore();
+    // cráneo + hocico superior
+    c.fillStyle = body;
+    c.beginPath(); c.ellipse(-4, -4, 19, 17, 0, 0, Math.PI * 2); c.fill();
+    c.beginPath(); c.moveTo(0, -14); c.quadraticCurveTo(26, -14, 34, -4); c.quadraticCurveTo(36, 4, 30, 6); c.lineTo(-6, 6); c.closePath(); c.fill();
+    // sombra y escamas
+    c.fillStyle = dark;
+    for (let i = 0; i < 6; i++) circle(c, -12 + i * 6, -10 + (i % 2) * 4, 1.3, dark);
+    c.beginPath(); c.moveTo(-6, 6); c.lineTo(30, 6); c.lineTo(28, 3); c.lineTo(-6, 3); c.fill();
+    // dientes superiores
+    fangs(c, 4, 31, 6, 3.2, 1, 6);
+    // ojo con ceja
+    eyeGlow(c, 6, -8, 3.4);
+    c.fillStyle = dark;
+    c.beginPath(); c.moveTo(-1, -15); c.lineTo(14, -10); c.lineTo(12, -13); c.lineTo(0, -17); c.fill();
+    circle(c, 29, -6, 1.4, '#102a10'); // fosa nasal
+  } else { // wolf
+    // orejas
+    for (const [ex, tx] of [[-10, -16], [8, 12]]) {
+      c.fillStyle = dark;
+      c.beginPath(); c.moveTo(ex - 8, -12); c.lineTo(tx, -40); c.lineTo(ex + 8, -16); c.fill();
+      c.fillStyle = '#c9a070';
+      c.beginPath(); c.moveTo(ex - 4, -15); c.lineTo(tx, -33); c.lineTo(ex + 4, -17); c.fill();
+    }
+    // cabeza con pelo erizado en las mejillas
+    c.fillStyle = body;
+    c.beginPath(); c.ellipse(-2, -4, 20, 18, 0, 0, Math.PI * 2); c.fill();
+    for (const s of [-1, 1]) {
+      c.beginPath(); c.moveTo(-2 + s * 16, -6); c.lineTo(-2 + s * 26, 4); c.lineTo(-2 + s * 14, 6); c.fill();
+      c.beginPath(); c.moveTo(-2 + s * 14, 2); c.lineTo(-2 + s * 22, 12); c.lineTo(-2 + s * 10, 10); c.fill();
+    }
+    // mandíbula inferior
+    c.fillStyle = hurt ? '#ffe0c0' : '#c9a070';
+    c.beginPath(); c.moveTo(0, 8); c.lineTo(22, 8 + o * 6); c.quadraticCurveTo(18, 16 + o * 8, 4, 16 + o * 4); c.closePath(); c.fill();
+    c.fillStyle = '#7a1010';
+    c.beginPath(); c.moveTo(2, 8); c.lineTo(22, 8 + o * 6); c.lineTo(20, 6); c.closePath(); c.fill();
+    fangs(c, 6, 20, 8 + o * 4, 3, -1, 4);
+    // hocico
+    c.fillStyle = hurt ? '#ffe0c0' : '#c9a070';
+    c.beginPath(); c.moveTo(-4, -4); c.quadraticCurveTo(18, -6, 26, 0); c.quadraticCurveTo(26, 7, 20, 8); c.lineTo(0, 8); c.closePath(); c.fill();
+    fangs(c, 4, 22, 7, 3.5, 1, 4);
+    c.fillStyle = '#111'; c.beginPath(); c.ellipse(25, -1, 3.5, 2.6, 0, 0, Math.PI * 2); c.fill();
+    // ojos y cejas fruncidas
+    eyeGlow(c, -6, -8, 3); eyeGlow(c, 7, -9, 3);
+    c.strokeStyle = dark; c.lineWidth = 2.2; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(-12, -14); c.lineTo(-2, -11); c.moveTo(13, -15); c.lineTo(3, -12); c.stroke();
+  }
+  c.restore();
 }
 
 function limb(c, x1, y1, x2, y2, w, color) {
@@ -93,6 +195,13 @@ function circle(c, x, y, r, color) {
 // Cabeza: la foto del jugador enmarcada con pelo/escamas/orejas según el monstruo.
 function drawHead(c, cx, cy, r, m, face, opts = {}) {
   const { hurt = false, eat = 0, time = 0, tilt = 0 } = opts;
+  if (face._monster) { // sin foto: cabeza de monstruo animada
+    const open = eat > 0 ? 0.5 + Math.sin(time * 40) * 0.5 : opts.roar ? 1 : 0.25 + Math.sin(time * 2.5) * 0.08;
+    c.save(); c.translate(cx, cy); c.rotate(tilt);
+    drawMonsterHead(c, 0, 0, r * 1.25, m, { f: opts.f || 1, open, hurt });
+    c.restore();
+    return;
+  }
   c.save();
   c.translate(cx, cy);
   c.rotate(tilt);
@@ -100,51 +209,71 @@ function drawHead(c, cx, cy, r, m, face, opts = {}) {
     const k = Math.sin(time * 40) * 0.12;
     c.scale(1 + k, 1 - k);
   }
-  // adornos detrás de la cabeza
-  c.fillStyle = m.dark;
-  if (m.type === 'wolf') {
-    for (const s of [-1, 1]) {
-      c.beginPath(); c.moveTo(s * r * 0.35, -r * 0.7); c.lineTo(s * r * 0.95, -r * 1.45); c.lineTo(s * r * 1.0, -r * 0.35); c.fill();
-      c.fillStyle = '#e8a3a3';
-      c.beginPath(); c.moveTo(s * r * 0.55, -r * 0.7); c.lineTo(s * r * 0.9, -r * 1.2); c.lineTo(s * r * 0.92, -r * 0.55); c.fill();
-      c.fillStyle = m.dark;
+  // La foto ES la cabeza: grande, sin marco, y alrededor los rasgos del personaje.
+  const fs = r * (face._cut === 'oval' ? 2.7 : 3.0);
+  const hx = fs * 0.36, hy = fs * 0.5; // semiejes aproximados de la cara recortada
+  const body = hurt ? '#ffffff' : m.body, dark = hurt ? '#ffb0b0' : m.dark;
+  if (m.type === 'ape') {
+    // melena de gorila y orejas
+    c.fillStyle = dark;
+    c.beginPath(); c.ellipse(0, -hy * 0.06, hx * 1.22, hy * 1.08, 0, 0, Math.PI * 2); c.fill();
+    for (let i = -3; i <= 3; i++) circle(c, i * hx * 0.32, -hy * 1.02 + Math.abs(i) * hy * 0.08, hx * 0.3, dark);
+    for (const sx of [-1, 1]) {
+      circle(c, sx * hx * 1.18, hy * 0.02, hx * 0.32, dark);
+      circle(c, sx * hx * 1.18, hy * 0.02, hx * 0.17, hurt ? '#ffd0d0' : m.belly);
     }
   } else if (m.type === 'lizard') {
-    for (let i = -3; i <= 3; i++) {
-      const a = -Math.PI / 2 + i * 0.36;
-      const bx = Math.cos(a) * r, by = Math.sin(a) * r;
-      c.fillStyle = i % 2 ? '#e0c030' : '#f06a2a';
+    // cresta de pinchos y capucha de escamas
+    for (let i = -4; i <= 4; i++) {
+      const a = -Math.PI / 2 + i * 0.3;
+      const bx = Math.cos(a) * hx * 1.05, by = Math.sin(a) * hy * 1.0;
+      const len = (i === 0 ? 1.0 : 0.62 - Math.abs(i) * 0.06) * hy;
+      c.fillStyle = i % 2 ? '#e07020' : '#f0c020';
       c.beginPath();
-      c.moveTo(bx + Math.cos(a + 1.57) * 6, by + Math.sin(a + 1.57) * 6);
-      c.lineTo(Math.cos(a) * (r + 14), Math.sin(a) * (r + 14));
-      c.lineTo(bx - Math.cos(a + 1.57) * 6, by - Math.sin(a + 1.57) * 6);
+      c.moveTo(bx - Math.sin(a) * 7, by + Math.cos(a) * 7);
+      c.lineTo(bx + Math.cos(a) * len * 0.8, by + Math.sin(a) * len * 0.8);
+      c.lineTo(bx + Math.sin(a) * 7, by - Math.cos(a) * 7);
       c.fill();
     }
-  } else { // ape: orejas y pelo revuelto
-    circle(c, -r * 1.02, 0, r * 0.32, m.dark);
-    circle(c, r * 1.02, 0, r * 0.32, m.dark);
-    circle(c, -r * 1.02, 0, r * 0.17, m.belly);
-    circle(c, r * 1.02, 0, r * 0.17, m.belly);
-    for (let i = -2; i <= 2; i++) circle(c, i * r * 0.33, -r * 0.98, r * 0.28, m.dark);
+    c.fillStyle = body;
+    c.beginPath(); c.ellipse(0, 0, hx * 1.2, hy * 1.07, 0, 0, Math.PI * 2); c.fill();
+    c.fillStyle = dark;
+    for (let k = 0; k < 14; k++) {
+      const a = (k / 14) * Math.PI * 2;
+      circle(c, Math.cos(a) * hx * 1.1, Math.sin(a) * hy * 1.0, 2, dark);
+    }
+    for (const sx of [-1, 1]) { // pinchos en las mejillas
+      c.fillStyle = '#f0c020';
+      c.beginPath(); c.moveTo(sx * hx * 1.12, hy * 0.1); c.lineTo(sx * hx * 1.55, hy * 0.25); c.lineTo(sx * hx * 1.1, hy * 0.38); c.fill();
+    }
+  } else { // wolf
+    // orejas puntiagudas y pelo erizado alrededor
+    for (const sx of [-1, 1]) {
+      c.fillStyle = dark;
+      c.beginPath(); c.moveTo(sx * hx * 0.25, -hy * 0.82); c.lineTo(sx * hx * 1.05, -hy * 1.55); c.lineTo(sx * hx * 1.12, -hy * 0.45); c.fill();
+      c.fillStyle = '#c9a070';
+      c.beginPath(); c.moveTo(sx * hx * 0.48, -hy * 0.8); c.lineTo(sx * hx * 0.98, -hy * 1.32); c.lineTo(sx * hx * 1.0, -hy * 0.6); c.fill();
+    }
+    c.fillStyle = body;
+    c.beginPath();
+    for (let k = 0; k <= 24; k++) {
+      const a = (k / 24) * Math.PI * 2, rr = k % 2 ? 1.08 : 1.3;
+      const x = Math.cos(a) * hx * rr, y = Math.sin(a) * hy * (k % 2 ? 1.04 : 1.16);
+      k ? c.lineTo(x, y) : c.moveTo(x, y);
+    }
+    c.closePath(); c.fill();
   }
-  // marco
-  circle(c, 0, 0, r + 4, m.dark);
-  circle(c, 0, 0, r + 1.5, m.body);
-  // la cara
-  // La cara recortada (sin fondo) se dibuja grande, tapando casi toda la cabeza;
-  // la cara por defecto (círculo) cabe justa en el marco.
-  if (face._cut) {
-    const fs = r * 2.5;
-    c.drawImage(face, -fs / 2, -fs / 2 + r * 0.04, fs, fs);
-  } else c.drawImage(face, -r, -r, r * 2, r * 2);
+  // la cara del jugador
+  if (face._cut) c.drawImage(face, -fs / 2, -fs / 2, fs, fs);
+  else { // cara redonda (navegadores sin recorte): sin fondo de cuadrado
+    c.save(); c.beginPath(); c.ellipse(0, 0, hx, hy * 0.95, 0, 0, Math.PI * 2); c.clip();
+    c.drawImage(face, -hy, -hy, hy * 2, hy * 2); c.restore();
+  }
   if (hurt) {
-    c.globalAlpha = 0.55;
-    circle(c, 0, 0, r, '#ff2020');
+    c.globalAlpha = 0.45;
+    c.fillStyle = '#ff2020'; c.beginPath(); c.ellipse(0, 0, hx, hy * 0.95, 0, 0, Math.PI * 2); c.fill();
     c.globalAlpha = 1;
   }
-  // brillo
-  c.strokeStyle = 'rgba(255,255,255,.35)'; c.lineWidth = 2;
-  c.beginPath(); c.arc(0, 0, r - 2, -2.6, -1.9); c.stroke();
   c.restore();
 }
 
@@ -205,7 +334,7 @@ function drawMonster(c, s, time) {
     }
     c.restore();
     c.restore();
-    drawHead(c, s.x - s.f * 2, s.y - 84, 29, m, s.face, { hurt, eat: s.eatT, time, tilt: s.f * 0.08 });
+    drawHead(c, s.x - s.f * 2, s.y - 92, 29, m, s.face, { hurt, eat: s.eatT, time, tilt: s.f * 0.08, f: s.f, roar: punching });
     return;
   }
 
@@ -259,7 +388,7 @@ function drawMonster(c, s, time) {
   }
   c.restore();
   c.restore();
-  drawHead(c, s.x + f * 3, s.y - 84, 29, m, s.face, { hurt, eat: s.eatT, time, tilt: punching ? f * 0.12 : 0 });
+  drawHead(c, s.x + f * 3, s.y - 92, 29, m, s.face, { hurt, eat: s.eatT, time, tilt: punching ? f * 0.12 : 0, f, roar: punching });
 }
 
 // Forma humana (al perder toda la vida): en calzoncillos, con la cara del jugador.
@@ -282,7 +411,11 @@ function drawHuman(c, x, y, f, anim, face, time) {
   c.save();
   c.translate(x, y - 36);
   circle(c, 0, 0, 11, '#f1c9a5');
-  if (face._cut) c.drawImage(face, -14, -14, 28, 28); else c.drawImage(face, -10, -10, 20, 20);
+  if (face._monster) { // sin foto: cara humana sencilla
+    c.fillStyle = '#5a3a20'; c.beginPath(); c.arc(0, -3, 11, Math.PI, 0); c.fill();
+    circle(c, -4, 0, 1.5, '#222'); circle(c, 4, 0, 1.5, '#222');
+    c.fillStyle = '#a03030'; c.beginPath(); c.ellipse(0, 6, 3, 2, 0, 0, Math.PI * 2); c.fill();
+  } else if (face._cut) c.drawImage(face, -14, -14, 28, 28); else c.drawImage(face, -10, -10, 20, 20);
   c.restore();
   // gotitas de sudor
   if (Math.floor(time * 4) % 2 === 0) {

@@ -5,6 +5,7 @@ html, body {
   font-family: "Trebuchet MS", "Segoe UI", system-ui, sans-serif;
 }
 #game {
+  -webkit-user-select: none; user-select: none; -webkit-touch-callout: none; -webkit-tap-highlight-color: transparent;
   position: absolute; left: 50%; top: 50%;
   transform: translate(-50%, -50%);
   display: block; background: #000;
@@ -95,3 +96,14 @@ html, body {
   display: inline-block; min-width: 22px; padding: 1px 6px; border-radius: 5px;
   background: #eee; color: #000; font-family: monospace; font-weight: bold; border-bottom: 3px solid #999;
 }
+
+.name-field { display: flex; align-items: center; gap: 8px; width: 100%; font-weight: bold; font-size: 15px; }
+.name-field input {
+  flex: 1; min-width: 0; font: inherit; font-size: 18px; text-transform: uppercase; letter-spacing: 1px;
+  padding: 7px 10px; border-radius: 8px; border: 2px solid var(--pc, #ffcc00);
+  background: rgba(0, 0, 0, .55); color: var(--pc, #ffcc00); outline: none;
+}
+.name-field input:focus { box-shadow: 0 0 10px var(--pc, #ffcc00); }
+
+/* El distintivo de mr_d0nuT no estorba al joystick táctil durante la partida */
+body.in-game #dnt-badge { display: none; }
