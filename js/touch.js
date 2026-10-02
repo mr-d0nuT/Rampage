@@ -119,41 +119,27 @@ const TouchPad = (() => {
     pads.forEach(p => { p.stick = null; p.punch = null; p.jump = null; });
   }
 
-  // Joystick de recreativa: base octogonal negra con guía, palanca y bola roja brillante
-  function drawArcadeStick(c, sx, sy, kx, ky, active, col) {
-    c.globalAlpha = active ? 0.95 : 0.6;
-    c.fillStyle = 'rgba(0,0,0,.35)';
-    c.beginPath(); c.ellipse(sx + 4, sy + 8, STICK_R + 6, STICK_R * 0.55 + 6, 0, 0, Math.PI * 2); c.fill();
-    const oct = r => { c.beginPath(); for (let i = 0; i < 8; i++) { const a = Math.PI / 8 + i * Math.PI / 4; i ? c.lineTo(sx + Math.cos(a) * r, sy + Math.sin(a) * r) : c.moveTo(sx + Math.cos(a) * r, sy + Math.sin(a) * r); } c.closePath(); };
-    oct(STICK_R + 8); c.fillStyle = '#26262c'; c.fill();
-    c.lineWidth = 4; c.strokeStyle = col; c.stroke();
-    oct(STICK_R - 6); c.fillStyle = '#111114'; c.fill();
-    c.strokeStyle = 'rgba(255,255,255,.15)'; c.lineWidth = 2;
-    c.beginPath(); c.moveTo(sx - STICK_R + 14, sy); c.lineTo(sx + STICK_R - 14, sy); c.moveTo(sx, sy - STICK_R + 14); c.lineTo(sx, sy + STICK_R - 14); c.stroke();
-    circle(c, sx, sy, 9, '#3a3a42');
-    c.strokeStyle = '#c8c8d0'; c.lineWidth = 9; c.lineCap = 'round';
-    c.beginPath(); c.moveTo(sx, sy); c.lineTo(kx, ky); c.stroke();
-    const g = c.createRadialGradient(kx - 8, ky - 9, 3, kx, ky, 25);
+  // Joystick: solo la bola roja (sin base). En reposo, semitransparente.
+  function drawArcadeStick(c, sx, sy, kx, ky, active) {
+    c.globalAlpha = active ? 0.85 : 0.45;
+    const g = c.createRadialGradient(kx - 8, ky - 9, 3, kx, ky, 26);
     g.addColorStop(0, '#ff9a8a'); g.addColorStop(0.35, '#ee2a1a'); g.addColorStop(1, '#7a0a04');
-    circle(c, kx, ky, 25, g);
+    circle(c, kx, ky, 26, g);
     c.globalAlpha *= 0.8; circle(c, kx - 8, ky - 10, 6, 'rgba(255,255,255,.75)');
   }
-  // Botón de recreativa: anillo, relieve y brillo; se hunde al pulsarlo
+  // Botón semitransparente, sin aro ni sombra oscura; se hunde al pulsarlo
   function drawArcadeButton(c, b, on, color, label) {
-    const r = b.r, dy = on ? 4 : 0;
-    c.globalAlpha = on ? 1 : 0.7;
-    circle(c, b.x, b.y + 6, r + 7, 'rgba(0,0,0,.35)');
-    circle(c, b.x, b.y, r + 7, '#202026');
-    circle(c, b.x, b.y + 5, r, shade(color, 0.55));
-    const g = c.createRadialGradient(b.x - r * 0.35, b.y - r * 0.4 + dy, r * 0.1, b.x, b.y + dy, r);
-    g.addColorStop(0, shade(color, 1.5)); g.addColorStop(0.5, color); g.addColorStop(1, shade(color, 0.7));
-    circle(c, b.x, b.y + dy, r * 0.94, g);
-    c.globalAlpha *= 0.7; c.fillStyle = 'rgba(255,255,255,.55)';
-    c.beginPath(); c.ellipse(b.x - r * 0.25, b.y - r * 0.45 + dy, r * 0.42, r * 0.2, -0.4, 0, Math.PI * 2); c.fill();
-    c.globalAlpha = 1; c.textAlign = 'center';
-    c.font = `bold ${Math.round(r * 0.36)}px "Trebuchet MS", sans-serif`;
-    c.lineWidth = 4; c.strokeStyle = 'rgba(0,0,0,.6)'; c.strokeText(label, b.x, b.y + r * 0.14 + dy);
-    c.fillStyle = '#fff'; c.fillText(label, b.x, b.y + r * 0.14 + dy);
+    const r = b.r * (on ? 0.92 : 1);
+    c.globalAlpha = on ? 0.7 : 0.38;
+    const g = c.createRadialGradient(b.x - r * 0.35, b.y - r * 0.4, r * 0.1, b.x, b.y, r);
+    g.addColorStop(0, shade(color, 1.5)); g.addColorStop(0.55, color); g.addColorStop(1, shade(color, 0.8));
+    circle(c, b.x, b.y, r, g);
+    c.globalAlpha *= 0.8; c.fillStyle = 'rgba(255,255,255,.55)';
+    c.beginPath(); c.ellipse(b.x - r * 0.25, b.y - r * 0.45, r * 0.42, r * 0.2, -0.4, 0, Math.PI * 2); c.fill();
+    c.globalAlpha = on ? 0.95 : 0.75; c.textAlign = 'center';
+    c.font = `bold ${Math.round(b.r * 0.36)}px "Trebuchet MS", sans-serif`;
+    c.lineWidth = 3; c.strokeStyle = 'rgba(0,0,0,.45)'; c.strokeText(label, b.x, b.y + b.r * 0.14);
+    c.fillStyle = '#fff'; c.fillText(label, b.x, b.y + b.r * 0.14);
   }
 
   function draw(c, colors) {
@@ -171,7 +157,7 @@ const TouchPad = (() => {
         const dx = pad.stick.x - sx, dy = pad.stick.y - sy, d = Math.hypot(dx, dy) || 1, k = Math.min(1, (STICK_R - 10) / d);
         kx = sx + dx * k; ky = sy + dy * k;
       }
-      drawArcadeStick(c, sx, sy, kx, ky, !!pad.stick, col);
+      drawArcadeStick(c, sx, sy, kx, ky, !!pad.stick);
       drawArcadeButton(c, L.punch, pad.punch !== null, '#e8301e', 'GOLPE');
       drawArcadeButton(c, L.jump, pad.jump !== null, '#f0b400', 'SALTO');
     }
