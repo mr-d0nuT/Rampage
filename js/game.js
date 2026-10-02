@@ -1,7 +1,20 @@
 'use strict';
 // FACE RAMPAGE — lógica principal del juego.
 
-const W = 960, H = 540, GROUND = 470, CELL = 32;
+// El mundo se adapta a la orientación: horizontal 960x540, vertical 540x960 (tipo Game Boy:
+// ciudad estrecha y alta arriba, carretera y controles táctiles abajo).
+let W = 960, H = 540, GROUND = 470, PORTRAIT = false;
+const CELL = 32;
+function applyLayout() {
+  const port = window.innerHeight > window.innerWidth * 1.05;
+  if (port === PORTRAIT && W) return false;
+  PORTRAIT = port;
+  if (port) { W = 540; H = 960; GROUND = 770; } else { W = 960; H = 540; GROUND = 470; }
+  return true;
+}
+applyLayout();
+// ¿Interfaz táctil? (móvil/tablet, aunque aún no se haya tocado la pantalla)
+const touchUI = () => TouchPad.enabled || (window.matchMedia && matchMedia('(pointer: coarse)').matches);
 const GRAV = 1500, WALK = 150, JUMP = 600, CLIMB = 115, CLIMBX = 90;
 const MAX_HP = 100;
 
@@ -42,22 +55,24 @@ function makeCity(level) {
   G.cityVersion = (G.cityVersion || 0) + 1;
   const city = CITY_DATA[(level - 1) % CITY_DATA.length];
   // los 4 edificios emblemáticos de la ciudad, en orden aleatorio
-  const ids = city.lm.slice().sort(() => Math.random() - 0.5);
-  const n = ids.length, minGap = 60;
+  let ids = city.lm.slice().sort(() => Math.random() - 0.5);
+  if (PORTRAIT) ids = ids.slice(0, 3);
+  const n = ids.length, minGap = PORTRAIT ? 40 : 60, margin = PORTRAIT ? 30 : 60;
   const specs = ids.map(id => {
     const st = LANDMARKS[id];
     // que quepa la silueta de arriba (cúpulas, agujas…) en pantalla
     const maxRows = Math.max(4, Math.floor((GROUND - 56 - (st.crownH || 100) * 0.8) / CELL));
-    return { id, st, cols: randi(st.cols[0], st.cols[1]), rows: Math.min(10, maxRows, randi(st.rows[0], st.rows[1])) };
+    const rows = randi(st.rows[0], st.rows[1]);
+    return { id, st, cols: randi(st.cols[0], st.cols[1]), rows: PORTRAIT ? Math.min(15, maxRows, Math.round(rows * 1.45)) : Math.min(10, maxRows, rows) };
   });
-  const maxCells = Math.floor((W - 120 - (n - 1) * minGap) / CELL);
+  const maxCells = Math.floor((W - margin * 2 - (n - 1) * minGap) / CELL);
   while (specs.reduce((t, sp) => t + sp.cols, 0) > maxCells) {
     const big = specs.reduce((m, sp) => (sp.cols > m.cols ? sp : m));
     big.cols--;
   }
   const totalW = specs.reduce((t, sp) => t + sp.cols * CELL, 0);
-  const gap = (W - 120 - totalW) / (n - 1);
-  let x = 60;
+  const gap = (W - margin * 2 - totalW) / (n - 1);
+  let x = margin;
   specs.forEach(sp => {
     const b = {
       x: Math.round(x), w: sp.cols * CELL, h: sp.rows * CELL, cols: sp.cols, rows: sp.rows,
@@ -625,7 +640,7 @@ function spawnSoldier() {
 }
 function spawnHeli() {
   const fromLeft = Math.random() < 0.5;
-  G.enemies.push({ type: 'heli', x: fromLeft ? -60 : W + 60, y: 90, baseY: rand(80, 150), dir: fromLeft ? 1 : -1,
+  G.enemies.push({ type: 'heli', x: fromLeft ? -60 : W + 60, y: 90, baseY: PORTRAIT ? rand(150, 330) : rand(80, 150), dir: fromLeft ? 1 : -1,
     t: rand(0, 6), hp: 2, fireT: rand(1.5, 2.5), vy: 0, falling: false, rot: 0 });
 }
 function spawnTank() {
@@ -1205,11 +1220,12 @@ function text(str, x, y, size, color = '#fff', align = 'center', outline = 4) {
 }
 
 function drawHUD() {
-  ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(0, 0, W, 44);
+  ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(0, 0, W, PORTRAIT ? 44 * Math.max(1, G.players.length) : 44);
   G.players.forEach((p, i) => {
     const right = i === 1;
-    const x0 = right ? W - 300 : 10;
+    const x0 = PORTRAIT ? 10 : (right ? W - 300 : 10);
     ctx.save();
+    if (PORTRAIT) ctx.translate(0, i * 44); // en vertical, un jugador por fila
     circle(ctx, x0 + 22, 22, 19, p.color);
     ctx.drawImage(p.face, x0 + 5, 5, 34, 34);
     if (p.out) { ctx.globalAlpha = 0.6; circle(ctx, x0 + 22, 22, 17, '#000'); ctx.globalAlpha = 1; }
@@ -1228,6 +1244,11 @@ function drawHUD() {
     if (p.rageT > 0) text(`FURIA ${Math.ceil(p.rageT)}`, x0 + 48, 56, 14, Math.floor(G.time * 8) % 2 ? '#ff3a1a' : '#ffcc00', 'left', 3);
     ctx.restore();
   });
+  if (PORTRAIT) {
+    text(G.city || '', W - 10, 18, 13, '#fff', 'right', 3);
+    text(`DÍA ${G.level}`, W - 10, 36, 13, '#ffcc00', 'right', 3);
+    return;
+  }
   if (G.numPlayers === 1) text('1 JUGADOR', W - 20, 28, 14, '#aaa', 'right', 3);
   text(`${G.city || ''} · DÍA ${G.level}`, W / 2, 28, 16, '#fff', 'center', 3);
 }
@@ -1237,9 +1258,10 @@ function drawBanner() {
   const b = G.banner;
   const a = clamp(Math.min(b.t, 3.6 - b.t + 0.5) * 2, 0, 1);
   ctx.globalAlpha = a;
-  ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(0, 170, W, 120);
-  text(b.text, W / 2, 232, 52, '#ffcc00', 'center', 8);
-  text(b.sub, W / 2, 272, Math.min(20, Math.floor(1750 / b.sub.length)), '#fff', 'center', 4);
+  const by = PORTRAIT ? 300 : 170;
+  ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(0, by, W, 120);
+  text(b.text, W / 2, by + 62, Math.min(52, Math.floor((W - 30) / (b.text.length * 0.62))), '#ffcc00', 'center', 8);
+  text(b.sub, W / 2, by + 102, Math.min(20, Math.floor((W - 20) / (b.sub.length * 0.52))), '#fff', 'center', 4);
   ctx.globalAlpha = 1;
 }
 
@@ -1310,7 +1332,7 @@ function drawIntro() {
     ctx.restore();
   }
   ctx.restore();
-  if (t > 1.5) text('Pulsa una tecla o toca la pantalla', W / 2, H - 10, 13, 'rgba(255,255,255,.5)', 'center', 3);
+  if (t > 1.5) text(touchUI() ? 'Toca la pantalla para continuar' : 'Pulsa una tecla para continuar', W / 2, H - (PORTRAIT ? 40 : 10), PORTRAIT ? 17 : 13, 'rgba(255,255,255,.5)', 'center', 3);
 }
 
 let titleCity = false;
@@ -1322,45 +1344,70 @@ function drawTitle() {
   ctx.fillStyle = 'rgba(0,0,0,.45)'; ctx.fillRect(0, 0, W, H);
 
   const wob = Math.sin(G.time * 3) * 3;
+  const T = titleLayout();
   if (gameLogoReady()) {
-    const h = 188, w = h * GAME_LOGO.naturalWidth / GAME_LOGO.naturalHeight;
-    ctx.drawImage(GAME_LOGO, W / 2 - w / 2, 2 + wob, w, h);
+    const h = T.logoH, w = h * GAME_LOGO.naturalWidth / GAME_LOGO.naturalHeight;
+    ctx.drawImage(GAME_LOGO, W / 2 - w / 2, T.logoY + wob, w, h);
   } else {
-    text('FACE', W / 2, 114 + wob, 44, '#fff', 'center', 9);
-    text('RAMPAGE', W / 2, 180 + wob, 80, '#ff3b2f', 'center', 12);
+    text('FACE', W / 2, T.logoY + 112 + wob, 44, '#fff', 'center', 9);
+    text('RAMPAGE', W / 2, T.logoY + 178 + wob, 80, '#ff3b2f', 'center', 12);
   }
-  text('¡Tu cara, tu monstruo!', W / 2, 213, 19, '#ffcc00', 'center', 5);
+  text('¡Tu cara, tu monstruo!', W / 2, T.subY, PORTRAIT ? 24 : 19, '#ffcc00', 'center', 5);
   const rec = (G.records || (G.records = loadRecords()))[0];
   if (rec) text(`🏆 ${rec.name}  ${rec.score}`, W - 16, 30, 16, '#ffcc00', 'right', 4);
 
   // monstruos de muestra
   const faces = G.setup.map(s => s.face || MONSTERS[s.monster]._defaultFace || (MONSTERS[s.monster]._defaultFace = defaultFace(MONSTERS[s.monster])));
-  drawMonster(ctx, { x: 150, y: GROUND, f: 1, state: 'ground', anim: G.time * 8, punchT: (G.time % 1.4) > 1.2 ? 0.1 : 0, punchDir: 'side', hurtT: 0, eatT: 0, m: MONSTERS[G.setup[0].monster], face: faces[0] }, G.time);
-  drawMonster(ctx, { x: W - 150, y: GROUND, f: -1, state: 'ground', anim: G.time * 8 + 1, punchT: (G.time % 1.4) < 0.2 ? 0.1 : 0, punchDir: 'side', hurtT: 0, eatT: 0, m: MONSTERS[G.setup[1].monster], face: faces[1] }, G.time);
+  const mx = PORTRAIT ? 95 : 150;
+  drawMonster(ctx, { x: mx, y: GROUND, f: 1, state: 'ground', anim: G.time * 8, punchT: (G.time % 1.4) > 1.2 ? 0.1 : 0, punchDir: 'side', hurtT: 0, eatT: 0, m: MONSTERS[G.setup[0].monster], face: faces[0] }, G.time);
+  drawMonster(ctx, { x: W - mx, y: GROUND, f: -1, state: 'ground', anim: G.time * 8 + 1, punchT: (G.time % 1.4) < 0.2 ? 0.1 : 0, punchDir: 'side', hurtT: 0, eatT: 0, m: MONSTERS[G.setup[1].monster], face: faces[1] }, G.time);
 
   const opts = ['1 JUGADOR', '2 JUGADORES'];
   opts.forEach((o, i) => {
     const sel = G.titleSel === i;
-    const y = 262 + i * 46;
-    if (sel) { ctx.fillStyle = 'rgba(255,204,0,.2)'; ctx.fillRect(W / 2 - 150, y - 30, 300, 40); }
+    const y = T.optY[i];
+    if (sel) { ctx.fillStyle = 'rgba(255,204,0,.2)'; ctx.fillRect(W / 2 - 160, y - 32, 320, 44); }
     text((sel ? '▶ ' : '') + o + (sel ? ' ◀' : ''), W / 2, y, sel ? 32 : 26, sel ? '#ffcc00' : '#ccc', 'center', 5);
   });
-  text(TouchPad.enabled ? 'Toca una opción para empezar' : 'ENTER / ESPACIO / botón A para empezar', W / 2, 368, 15, '#fff', 'center', 3);
+  const touch = touchUI();
+  text(touch ? 'Toca una opción para empezar' : 'ENTER / ESPACIO / botón A para empezar', W / 2, T.hintY, touch ? 17 : 15, '#fff', 'center', 3);
 
   // controles
-  ctx.fillStyle = 'rgba(0,0,0,.6)'; ctx.fillRect(W / 2 - 300, 384, 600, 112);
-  ctx.strokeStyle = '#555'; ctx.strokeRect(W / 2 - 300, 384, 600, 112);
-  text('CONTROLES · Golpe + ↓ trepando = ¡golpe en diagonal!', W / 2, 404, 15, '#fff', 'center', 3);
-  text('JUGADOR 1', W / 2 - 150, 426, 15, PLAYER_COLORS[0], 'center', 3);
-  text('Mover: A D · Trepar (en un lateral): W S', W / 2 - 150, 446, 14, '#fff', 'center', 3);
-  text('Golpe: F   ·   Salto: G', W / 2 - 150, 466, 14, '#fff', 'center', 3);
-  text('JUGADOR 2', W / 2 + 150, 426, 15, PLAYER_COLORS[1], 'center', 3);
-  text('Mover: ← → · Trepar (en un lateral): ↑ ↓', W / 2 + 150, 446, 14, '#fff', 'center', 3);
-  text('Golpe: K   ·   Salto: L', W / 2 + 150, 466, 14, '#fff', 'center', 3);
-  const padTxt = Input.padCount === 0 ? 'Mandos: conecta uno y pulsa un botón'
-    : Input.padCount === 1 ? `1 mando detectado → ${(G.titleSel === 1) !== Input.swapPads ? 'JUGADOR 2' : 'JUGADOR 1'} · TAB para cambiar`
-    : `2 mandos detectados → mando 1 = ${Input.swapPads ? 'J2' : 'J1'} · TAB para cambiar`;
-  text(padTxt + '   ·   P = pausa · M = sonido', W / 2, 488, 12, '#9fd', 'center', 3);
+  const bw = Math.min(600, W - 24), bx = W / 2 - bw / 2;
+  ctx.fillStyle = 'rgba(0,0,0,.65)'; ctx.fillRect(bx, T.boxY, bw, T.boxH);
+  ctx.strokeStyle = '#555'; ctx.strokeRect(bx, T.boxY, bw, T.boxH);
+  if (touch) {
+    const y = T.boxY, fs = PORTRAIT ? 15 : 14;
+    text('📱 CONTROLES TÁCTILES', W / 2, y + 22, 16, '#ffcc00', 'center', 3);
+    text('🕹️ Joystick: andar · arriba / abajo junto a un edificio: trepar', W / 2, y + 46, fs, '#fff', 'center', 3);
+    text('🔴 GOLPE (con el joystick ↑ ↓: golpe arriba / abajo)', W / 2, y + 68, fs, '#fff', 'center', 3);
+    text('🟡 SALTO · ⏸ arriba: pausa', W / 2, y + 90, fs, '#fff', 'center', 3);
+    if (T.boxH > 110) text('En 2 jugadores, cada uno usa su lado', W / 2, y + 112, fs, '#9fd', 'center', 3);
+  } else if (PORTRAIT) {
+    const y = T.boxY;
+    text('CONTROLES · Golpe + ↓ trepando = ¡diagonal!', W / 2, y + 20, 14, '#fff', 'center', 3);
+    text('J1: A D mover · W S trepar · F golpe · G salto', W / 2, y + 44, 14, PLAYER_COLORS[0], 'center', 3);
+    text('J2: ← → mover · ↑ ↓ trepar · K golpe · L salto', W / 2, y + 66, 14, PLAYER_COLORS[1], 'center', 3);
+    text('P = pausa · M = sonido · mandos compatibles', W / 2, y + 90, 12, '#9fd', 'center', 3);
+  } else {
+    text('CONTROLES · Golpe + ↓ trepando = ¡golpe en diagonal!', W / 2, 404, 15, '#fff', 'center', 3);
+    text('JUGADOR 1', W / 2 - 150, 426, 15, PLAYER_COLORS[0], 'center', 3);
+    text('Mover: A D · Trepar (en un lateral): W S', W / 2 - 150, 446, 14, '#fff', 'center', 3);
+    text('Golpe: F   ·   Salto: G', W / 2 - 150, 466, 14, '#fff', 'center', 3);
+    text('JUGADOR 2', W / 2 + 150, 426, 15, PLAYER_COLORS[1], 'center', 3);
+    text('Mover: ← → · Trepar (en un lateral): ↑ ↓', W / 2 + 150, 446, 14, '#fff', 'center', 3);
+    text('Golpe: K   ·   Salto: L', W / 2 + 150, 466, 14, '#fff', 'center', 3);
+    const padTxt = Input.padCount === 0 ? 'Mandos: conecta uno y pulsa un botón'
+      : Input.padCount === 1 ? `1 mando detectado → ${(G.titleSel === 1) !== Input.swapPads ? 'JUGADOR 2' : 'JUGADOR 1'} · TAB para cambiar`
+      : `2 mandos detectados → mando 1 = ${Input.swapPads ? 'J2' : 'J1'} · TAB para cambiar`;
+    text(padTxt + '   ·   P = pausa · M = sonido', W / 2, 488, 12, '#9fd', 'center', 3);
+  }
+}
+
+function titleLayout() {
+  return PORTRAIT
+    ? { logoY: 50, logoH: 290, subY: 380, optY: [460, 524], hintY: 580, boxY: 600, boxH: 128 }
+    : { logoY: 2, logoH: 188, subY: 213, optY: [262, 308], hintY: 368, boxY: 384, boxH: 112 };
 }
 
 // ---------------------------------------------------------------------------
@@ -1403,31 +1450,35 @@ function drawRecordsTable(x, y, highlight = []) {
 function drawGameOver() {
   drawWorld();
   ctx.fillStyle = 'rgba(0,0,0,.65)'; ctx.fillRect(0, 0, W, H);
-  text('GAME OVER', W / 2, 150, 76, '#ff3b2f', 'center', 10);
-  text(`Has llegado al día ${G.level} (${G.city})`, W / 2, 196, 22, '#fff', 'center', 4);
+  const P = PORTRAIT, oy = P ? 60 : 0; // en vertical todo baja un poco y la tabla va debajo
+  text('GAME OVER', W / 2, 150 + oy, P ? 64 : 76, '#ff3b2f', 'center', 10);
+  text(`Has llegado al día ${G.level} (${G.city})`, W / 2, 196 + oy, P ? 18 : 22, '#fff', 'center', 4);
   const ranks = G.newRecords || [];
   G.players.forEach((p, i) => {
-    const cx = G.players.length === 1 ? W / 2 - 120 : (i === 0 ? 170 : 470);
-    circle(ctx, cx, 290, 58, p.color);
-    ctx.drawImage(p.face, cx - 54, 236, 108, 108);
-    text(p.name, cx, 378, 22, p.color, 'center', 4);
-    text(String(p.score), cx, 412, 34, '#fff', 'center', 5);
-    if (ranks[i] === 0) text('¡NUEVO RÉCORD!', cx, 444, 22, Math.floor(G.time * 6) % 2 ? '#ffcc00' : '#ff5030', 'center', 4);
-    else if (ranks[i] > 0) text(`¡TOP ${ranks[i] + 1}!`, cx, 444, 20, '#ffcc00', 'center', 4);
+    const cx = P ? (G.players.length === 1 ? W / 2 : W / 2 + (i ? 125 : -125))
+      : (G.players.length === 1 ? W / 2 - 120 : (i === 0 ? 170 : 470));
+    const y = 290 + oy;
+    circle(ctx, cx, y, 58, p.color);
+    ctx.drawImage(p.face, cx - 54, y - 54, 108, 108);
+    text(p.name, cx, y + 88, 22, p.color, 'center', 4);
+    text(String(p.score), cx, y + 122, 34, '#fff', 'center', 5);
+    if (ranks[i] === 0) text('¡NUEVO RÉCORD!', cx, y + 154, 22, Math.floor(G.time * 6) % 2 ? '#ffcc00' : '#ff5030', 'center', 4);
+    else if (ranks[i] > 0) text(`¡TOP ${ranks[i] + 1}!`, cx, y + 154, 20, '#ffcc00', 'center', 4);
   });
   if (G.players.length === 2) {
     const [a, b] = G.players;
     const msg = a.score === b.score ? '¡EMPATE!' : `¡GANA ${(a.score > b.score ? a : b).name}!`;
-    text(msg, 320, 300, 24, '#ffcc00', 'center', 5);
+    text(msg, P ? W / 2 : 320, P ? 260 + oy : 300, 24, '#ffcc00', 'center', 5);
   }
-  drawRecordsTable(760, 250, ranks.filter(r => r >= 0));
-  if (G.sceneT > 1.5 && Math.floor(G.time * 2) % 2) text('Pulsa ENTER o un botón para volver al menú', W / 2, 480, 20, '#fff', 'center', 4);
+  drawRecordsTable(P ? W / 2 - 85 : 760, P ? 560 : 250, ranks.filter(r => r >= 0));
+  const back = touchUI() ? 'Toca la pantalla para volver al menú' : 'Pulsa ENTER o un botón para volver al menú';
+  if (G.sceneT > 1.5 && Math.floor(G.time * 2) % 2) text(back, W / 2, P ? H - 80 : 480, 20, '#fff', 'center', 4);
 }
 
 function drawPause() {
   ctx.fillStyle = 'rgba(0,0,0,.55)'; ctx.fillRect(0, 0, W, H);
   text('PAUSA', W / 2, H / 2 - 10, 64, '#fff', 'center', 8);
-  text('P / ESC / START (o toca la pantalla) para continuar · Q para salir', W / 2, H / 2 + 34, 18, '#ddd', 'center', 4);
+  text(touchUI() ? 'Toca la pantalla para continuar' : 'P / ESC / START para continuar · Q para salir', W / 2, H / 2 + 34, PORTRAIT ? 16 : 18, '#ddd', 'center', 4);
   ctx.fillStyle = 'rgba(200,40,30,.9)'; ctx.fillRect(W / 2 - 90, H / 2 + 72, 180, 48);
   text('SALIR AL MENÚ', W / 2, H / 2 + 103, 20, '#fff', 'center', 4);
 }
@@ -1469,8 +1520,9 @@ function update(dt) {
       if (dn && G.titleSel !== 1) { G.titleSel = 1; Sound.play('select'); }
       let tapStart = false;
       for (let t; (t = TouchPad.consumeTap());) { // móvil: tocar una opción
-        if (t.y > 228 && t.y < 284) G.titleSel = 0;
-        else if (t.y > 284 && t.y < 336) G.titleSel = 1;
+        const oy = titleLayout().optY;
+        if (Math.abs(t.y - (oy[0] - 10)) < 28) G.titleSel = 0;
+        else if (Math.abs(t.y - (oy[1] - 10)) < 28) G.titleSel = 1;
         tapStart = true;
       }
       if (tapStart || anyConfirm() || Input.pressed(0, 'punch') || Input.pressed(0, 'jump') || Input.pressed(1, 'punch') || Input.pressed(1, 'jump')) {
@@ -1500,7 +1552,6 @@ function update(dt) {
           else pausePressed = true;
         }
       }
-      if (portrait() && !G.paused) pausePressed = true; // móvil en vertical: pausa automática
       if (pausePressed) { G.paused = !G.paused; Sound.pauseMusic(G.paused); TouchPad.releaseAll(); }
       if (G.paused) {
         if (quit) { G.paused = false; G.scene = 'title'; titleCity = false; Sound.pauseMusic(false); TouchPad.clearTaps(); }
@@ -1536,22 +1587,6 @@ function render() {
     case 'gameover': drawGameOver(); break;
   }
   drawSoundBadge();
-  if (portrait()) drawRotateHint();
-}
-
-// En móvil se juega en horizontal.
-function portrait() {
-  return TouchPad.enabled && window.innerHeight > window.innerWidth && G.scene !== 'setup';
-}
-function drawRotateHint() {
-  ctx.fillStyle = 'rgba(0,0,0,.85)'; ctx.fillRect(0, 0, W, H);
-  const a = Math.sin(G.time * 3) * 0.5;
-  ctx.save(); ctx.translate(W / 2, H / 2 - 40); ctx.rotate(a);
-  ctx.strokeStyle = '#fff'; ctx.lineWidth = 6; ctx.strokeRect(-40, -70, 80, 140);
-  circle(ctx, 0, 56, 6, '#fff');
-  ctx.restore();
-  text('¡Gira el móvil! 🔄', W / 2, H / 2 + 90, 54, '#ffcc00', 'center', 8);
-  text('Face Rampage se juega en horizontal', W / 2, H / 2 + 140, 28, '#fff', 'center', 5);
 }
 
 // Vibración en móvil (golpes, derrumbes…)
@@ -1561,10 +1596,10 @@ function buzz(ms) {
 
 // Aviso de sonido: Safari/Mac no deja sonar nada hasta pulsar una tecla o hacer clic.
 function drawSoundBadge() {
-  if (G.scene === 'setup') return;
+  if (G.scene === 'setup' || G.scene === 'intro') return;
   let msg = null;
   if (Sound.muted) msg = '🔇 Sonido silenciado (M)';
-  else if (Sound.blocked) msg = '🔈 Pulsa una tecla o haz clic para activar el sonido';
+  else if (Sound.blocked) msg = touchUI() ? '🔈 Toca la pantalla para activar el sonido' : '🔈 Pulsa una tecla o haz clic para activar el sonido';
   if (!msg) return;
   ctx.font = 'bold 13px "Trebuchet MS", sans-serif';
   const w = ctx.measureText(msg).width + 20;
@@ -1573,6 +1608,14 @@ function drawSoundBadge() {
 }
 
 function resize() {
+  if (applyLayout()) {
+    // se ha girado la pantalla: se rehace la ciudad para la nueva forma y se pausa
+    TouchPad.resize(W, H);
+    titleCity = false; bgKey = '';
+    if (G.scene === 'play' || G.scene === 'levelEnd') {
+      const lv = G.level; G.level = lv; startLevel(); G.paused = true; Sound.pauseMusic(true); TouchPad.releaseAll();
+    }
+  }
   const dpr = window.devicePixelRatio || 1;
   viewScale = Math.min(window.innerWidth / W, window.innerHeight / H);
   canvas.style.width = Math.floor(W * viewScale) + 'px';

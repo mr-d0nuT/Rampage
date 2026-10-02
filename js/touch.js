@@ -13,6 +13,11 @@ const TouchPad = (() => {
   let canvasEl = null, Wd = 960, Hd = 540;
 
   function layout(i) {
+    if (numPlayers === 2 && Hd > Wd) { // 2 jugadores en vertical: cada uno en su mitad de abajo
+      const s = i === 0 ? 1 : -1, ox = i === 0 ? 0 : Wd;
+      return { punch: { x: ox + s * 205, y: Hd - 70, r: 38 }, jump: { x: ox + s * 205, y: Hd - 158, r: 30 },
+        zone: x => (i === 0 ? x < 150 : x > Wd - 150), home: { x: ox + s * 80, y: Hd - 100 } };
+    }
     if (numPlayers === 1) {
       return { punch: { x: Wd - 92, y: Hd - 92, r: 54 }, jump: { x: Wd - 205, y: Hd - 52, r: 42 },
         zone: x => x < Wd * 0.5, home: { x: 120, y: Hd - 100 } };
@@ -21,7 +26,7 @@ const TouchPad = (() => {
       ? { punch: { x: 330, y: Hd - 78, r: 42 }, jump: { x: 240, y: Hd - 44, r: 32 }, zone: x => x < 190, home: { x: 100, y: Hd - 100 } }
       : { punch: { x: Wd - 330, y: Hd - 78, r: 42 }, jump: { x: Wd - 240, y: Hd - 44, r: 32 }, zone: x => x > Wd - 190, home: { x: Wd - 100, y: Hd - 100 } };
   }
-  const PAUSE = () => ({ x: Wd / 2, y: 66, r: 20 });
+  const PAUSE = () => ({ x: Wd / 2, y: Hd > Wd ? (numPlayers === 2 ? 118 : 74) : 66, r: 20 });
 
   function toGame(e) {
     const r = canvasEl.getBoundingClientRect();
@@ -33,7 +38,6 @@ const TouchPad = (() => {
     const d = document.documentElement;
     if (!document.fullscreenElement && d.requestFullscreen) {
       d.requestFullscreen({ navigationUI: 'hide' }).then(() => {
-        if (screen.orientation && screen.orientation.lock) screen.orientation.lock('landscape').catch(() => {});
       }).catch(() => {});
     }
   }
@@ -115,6 +119,43 @@ const TouchPad = (() => {
     pads.forEach(p => { p.stick = null; p.punch = null; p.jump = null; });
   }
 
+  // Joystick de recreativa: base octogonal negra con guía, palanca y bola roja brillante
+  function drawArcadeStick(c, sx, sy, kx, ky, active, col) {
+    c.globalAlpha = active ? 0.95 : 0.6;
+    c.fillStyle = 'rgba(0,0,0,.35)';
+    c.beginPath(); c.ellipse(sx + 4, sy + 8, STICK_R + 6, STICK_R * 0.55 + 6, 0, 0, Math.PI * 2); c.fill();
+    const oct = r => { c.beginPath(); for (let i = 0; i < 8; i++) { const a = Math.PI / 8 + i * Math.PI / 4; i ? c.lineTo(sx + Math.cos(a) * r, sy + Math.sin(a) * r) : c.moveTo(sx + Math.cos(a) * r, sy + Math.sin(a) * r); } c.closePath(); };
+    oct(STICK_R + 8); c.fillStyle = '#26262c'; c.fill();
+    c.lineWidth = 4; c.strokeStyle = col; c.stroke();
+    oct(STICK_R - 6); c.fillStyle = '#111114'; c.fill();
+    c.strokeStyle = 'rgba(255,255,255,.15)'; c.lineWidth = 2;
+    c.beginPath(); c.moveTo(sx - STICK_R + 14, sy); c.lineTo(sx + STICK_R - 14, sy); c.moveTo(sx, sy - STICK_R + 14); c.lineTo(sx, sy + STICK_R - 14); c.stroke();
+    circle(c, sx, sy, 9, '#3a3a42');
+    c.strokeStyle = '#c8c8d0'; c.lineWidth = 9; c.lineCap = 'round';
+    c.beginPath(); c.moveTo(sx, sy); c.lineTo(kx, ky); c.stroke();
+    const g = c.createRadialGradient(kx - 8, ky - 9, 3, kx, ky, 25);
+    g.addColorStop(0, '#ff9a8a'); g.addColorStop(0.35, '#ee2a1a'); g.addColorStop(1, '#7a0a04');
+    circle(c, kx, ky, 25, g);
+    c.globalAlpha *= 0.8; circle(c, kx - 8, ky - 10, 6, 'rgba(255,255,255,.75)');
+  }
+  // Botón de recreativa: anillo, relieve y brillo; se hunde al pulsarlo
+  function drawArcadeButton(c, b, on, color, label) {
+    const r = b.r, dy = on ? 4 : 0;
+    c.globalAlpha = on ? 1 : 0.7;
+    circle(c, b.x, b.y + 6, r + 7, 'rgba(0,0,0,.35)');
+    circle(c, b.x, b.y, r + 7, '#202026');
+    circle(c, b.x, b.y + 5, r, shade(color, 0.55));
+    const g = c.createRadialGradient(b.x - r * 0.35, b.y - r * 0.4 + dy, r * 0.1, b.x, b.y + dy, r);
+    g.addColorStop(0, shade(color, 1.5)); g.addColorStop(0.5, color); g.addColorStop(1, shade(color, 0.7));
+    circle(c, b.x, b.y + dy, r * 0.94, g);
+    c.globalAlpha *= 0.7; c.fillStyle = 'rgba(255,255,255,.55)';
+    c.beginPath(); c.ellipse(b.x - r * 0.25, b.y - r * 0.45 + dy, r * 0.42, r * 0.2, -0.4, 0, Math.PI * 2); c.fill();
+    c.globalAlpha = 1; c.textAlign = 'center';
+    c.font = `bold ${Math.round(r * 0.36)}px "Trebuchet MS", sans-serif`;
+    c.lineWidth = 4; c.strokeStyle = 'rgba(0,0,0,.6)'; c.strokeText(label, b.x, b.y + r * 0.14 + dy);
+    c.fillStyle = '#fff'; c.fillText(label, b.x, b.y + r * 0.14 + dy);
+  }
+
   function draw(c, colors) {
     if (!enabled || !playing()) return;
     c.save();
@@ -124,35 +165,23 @@ const TouchPad = (() => {
     c.fillStyle = '#fff'; c.fillRect(P.x - 7, P.y - 8, 5, 16); c.fillRect(P.x + 2, P.y - 8, 5, 16);
     for (let i = 0; i < numPlayers; i++) {
       const L = layout(i), pad = pads[i], col = colors[i];
-      // joystick
       const sx = pad.stick ? pad.stick.ox : L.home.x, sy = pad.stick ? pad.stick.oy : L.home.y;
-      c.globalAlpha = pad.stick ? 0.55 : 0.3;
-      circle(c, sx, sy, STICK_R, 'rgba(255,255,255,.18)');
-      c.strokeStyle = col; c.lineWidth = 3; c.beginPath(); c.arc(sx, sy, STICK_R, 0, Math.PI * 2); c.stroke();
       let kx = sx, ky = sy;
       if (pad.stick) {
-        const dx = pad.stick.x - sx, dy = pad.stick.y - sy, d = Math.hypot(dx, dy) || 1, k = Math.min(1, STICK_R / d);
+        const dx = pad.stick.x - sx, dy = pad.stick.y - sy, d = Math.hypot(dx, dy) || 1, k = Math.min(1, (STICK_R - 10) / d);
         kx = sx + dx * k; ky = sy + dy * k;
       }
-      c.globalAlpha = pad.stick ? 0.85 : 0.45;
-      circle(c, kx, ky, 24, col);
-      // botones
-      for (const [kind, label, color] of [['punch', 'GOLPE', '#e8402a'], ['jump', 'SALTO', '#2a7ae8']]) {
-        const b = L[kind], on = pad[kind] !== null;
-        c.globalAlpha = on ? 0.9 : 0.5;
-        circle(c, b.x, b.y, b.r * (on ? 0.92 : 1), color);
-        c.strokeStyle = '#fff'; c.lineWidth = 3; c.beginPath(); c.arc(b.x, b.y, b.r * (on ? 0.92 : 1), 0, Math.PI * 2); c.stroke();
-        c.globalAlpha = 1; c.fillStyle = '#fff'; c.textAlign = 'center';
-        c.font = `bold ${Math.round(b.r * 0.38)}px "Trebuchet MS", sans-serif`;
-        c.fillText(label, b.x, b.y + b.r * 0.14);
-      }
+      drawArcadeStick(c, sx, sy, kx, ky, !!pad.stick, col);
+      drawArcadeButton(c, L.punch, pad.punch !== null, '#e8301e', 'GOLPE');
+      drawArcadeButton(c, L.jump, pad.jump !== null, '#f0b400', 'SALTO');
     }
     c.restore();
-    c.textAlign = 'left';
+    c.textAlign = 'left'; c.lineCap = 'butt';
   }
 
   return {
     attach, state, draw, releaseAll,
+    resize(w, h) { Wd = w; Hd = h; },
     consumeTap: () => taps.shift() || null,
     clearTaps: () => { taps.length = 0; },
     get enabled() { return enabled; },

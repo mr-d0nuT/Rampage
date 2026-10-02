@@ -15,11 +15,12 @@ html, body {
 /* ---------- Setup overlay ---------- */
 #setup {
   position: fixed; inset: 0; z-index: 10;
-  display: flex; align-items: center; justify-content: center;
+  display: flex; /* centrado con margin:auto en la tarjeta: si no cabe, se puede hacer scroll */
   background: radial-gradient(circle at 50% 30%, rgba(60, 20, 90, .92), rgba(5, 0, 15, .97));
   padding: 16px; overflow: auto;
 }
 .setup-card {
+  margin: auto;
   width: min(920px, 100%);
   background: rgba(0, 0, 0, .55);
   border: 4px solid var(--pc, #ffcc00);
@@ -107,3 +108,57 @@ html, body {
 
 /* El distintivo de mr_d0nuT no estorba al joystick táctil durante la partida */
 body.in-game #dnt-badge { display: none; }
+
+/* ---------- Móvil en horizontal (poca altura) ---------- */
+@media (max-height: 560px) and (orientation: landscape) {
+  #setup { padding: 6px; }
+  .setup-card { padding: 6px 12px 10px; border-width: 3px; border-radius: 12px; box-shadow: 0 0 16px var(--pc, #ffcc00); }
+  #setup h2 { font-size: 20px; letter-spacing: 2px; }
+  #setup .sub, .hint { display: none; }
+  .setup-body { flex-wrap: nowrap; gap: 12px; align-items: flex-start; }
+  .cam-col { gap: 5px; }
+  .cam-box { width: min(52vh, 38vw); height: min(52vh, 38vw); border-width: 2px; }
+  #countdown { font-size: 70px; }
+  #camMsg { font-size: 11px; padding: 3px; }
+  .face-status { font-size: 11px; padding: 2px 8px; }
+  .btn-row { gap: 6px; }
+  .btn { font-size: 13px; padding: 5px 10px; border-width: 2px; }
+  .btn.small { font-size: 12px; padding: 4px 8px; }
+  .btn.go { font-size: 15px; padding: 7px 10px; }
+  .side-col { gap: 6px; width: min(300px, 46vw); }
+  #monsterPreview { width: 30vh; height: 30vh; }
+  #monsterPick { gap: 5px; }
+  .mcard { padding: 3px 2px; font-size: 11px; border-width: 2px; }
+  .mcard b { font-size: 13px; }
+  .mcard .dot { width: 12px; height: 12px; }
+  .name-field { font-size: 13px; }
+  .name-field input { font-size: 15px; padding: 4px 8px; }
+}
+/* ---------- Móvil en vertical ---------- */
+@media (max-width: 600px) and (orientation: portrait) {
+  #setup { padding: 6px; }
+  .setup-card { padding: 8px 10px 10px; border-width: 3px; }
+  #setup h2 { font-size: 22px; letter-spacing: 2px; }
+  #setup .sub, .hint { display: none; }
+  .setup-body { gap: 6px; }
+  .cam-col { gap: 5px; }
+  .cam-box { width: min(56vw, 34vh); height: min(56vw, 34vh); }
+  #countdown { font-size: 80px; }
+  .face-status { font-size: 11px; padding: 2px 8px; }
+  .btn-row { gap: 6px; }
+  .btn { font-size: 14px; padding: 6px 10px; }
+  .btn.small { font-size: 12px; padding: 5px 8px; }
+  .setup-body { flex-direction: column; align-items: stretch; }
+  .cam-col { align-self: center; }
+  .side-col { width: 100%; max-width: 100%; min-width: 0; gap: 6px; display: grid; grid-template-columns: 90px minmax(0, 1fr); align-items: center; }
+  #monsterPick, .name-field { min-width: 0; }
+  .mcard { min-width: 0; overflow: hidden; }
+  #monsterPreview { width: 90px; height: 90px; grid-row: span 2; }
+  #monsterPick { gap: 4px; }
+  .mcard { padding: 3px 2px; font-size: 10px; }
+  .mcard b { font-size: 12px; }
+  .mcard .dot { width: 10px; height: 10px; }
+  .name-field { font-size: 13px; }
+  .name-field input { font-size: 15px; padding: 5px 8px; }
+  .btn.go { grid-column: 1 / -1; font-size: 17px; padding: 8px; }
+}

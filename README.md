@@ -29,10 +29,11 @@ También puedes abrir `index.html` con doble clic. El juego funciona, pero algun
 no permiten usar la cámara desde `file://`; en ese caso usa **📁 Subir imagen** o la opción B.
 
 ## 📱 En el móvil o la tablet
-- Abre la web en el móvil, en **horizontal**. Al primer toque se pone a pantalla completa (en Android también fija la orientación).
-- **Joystick flotante** a la izquierda (aparece donde pongas el pulgar) y botones **GOLPE** y **SALTO** a la derecha.
+- Se juega **en vertical o en horizontal**: el juego se adapta a cómo tengas el móvil (en vertical la ciudad es
+  más alta y estrecha, con los controles abajo). Al primer toque se pone a pantalla completa.
+- **Joystick de recreativa** a la izquierda (aparece donde pongas el pulgar) y botones **GOLPE** (rojo) y **SALTO** (amarillo) a la derecha.
 - En una **tablet** pueden jugar **2 jugadores**: cada uno tiene joystick y botones en su lado de la pantalla.
-- Vibra con los golpes, los daños y los derrumbes. Si pones el móvil en vertical, el juego se pausa.
+- Vibra con los golpes, los daños y los derrumbes. Si giras el móvil en plena partida, se pausa y la ciudad se adapta.
 - Se puede **instalar como app**: "Añadir a pantalla de inicio" (iPhone: botón Compartir; Android: menú ⋮).
 
 ## 🔥 Combos, furia y récords
