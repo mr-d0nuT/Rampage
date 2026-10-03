@@ -72,7 +72,7 @@ const Setup = (() => {
     });
     const L = Input.LABELS[idx];
     hint.innerHTML =
-      `Cambiar monstruo: <kbd>${idx === 0 ? 'A' : '←'}</kbd> <kbd>${idx === 0 ? 'D' : '→'}</kbd><br>` +
+      `Cambiar monstruo: <kbd>${idx === 0 ? '←' : 'A'}</kbd> <kbd>${idx === 0 ? '→' : 'D'}</kbd><br>` +
       `Foto: <kbd>${L.punch}</kbd> o <kbd>Espacio</kbd> · Listo: <kbd>${L.jump}</kbd> o <kbd>Enter</kbd><br>` +
       `<small>Con mando: X/□ = foto · A/✕ = listo · Haz clic en "Tu nombre" para escribirlo</small>`;
     nameInput.value = d.name || '';

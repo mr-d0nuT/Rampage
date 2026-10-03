@@ -63,15 +63,15 @@ no permiten usar la cámara desde `file://`; en ese caso usa **📁 Subir imagen
 
 ## 🎮 Controles
 
-Los dos jugadores pueden compartir **un solo teclado**: WASD a la izquierda y flechas a la derecha,
+Los dos jugadores pueden compartir **un solo teclado**: flechas para el Jugador 1 y WASD para el Jugador 2,
 que es el reparto habitual en los juegos de PC para 2 jugadores.
 
 | Acción | Jugador 1 | Jugador 2 | Mando |
 |---|---|---|---|
-| Andar | `A` `D` | `←` `→` | Stick / cruceta |
-| Trepar (junto a un **lateral** del edificio) | `W` `S` | `↑` `↓` | Stick / cruceta |
-| Golpe | `F` | `K` (o `Ctrl` dcho., o `1` del teclado numérico) | X / □ (o B / ○, RB, RT) |
-| Salto | `G` | `L` (o `Shift` dcho., o `2` del teclado numérico) | A / ✕ |
+| Andar | `←` `→` | `A` `D` | Stick / cruceta |
+| Trepar (junto a un **lateral** del edificio) | `↑` `↓` | `W` `S` | Stick / cruceta |
+| Golpe | `K` (o `Ctrl` dcho., o `1` del teclado numérico) | `F` | X / □ (o B / ○, RB, RT) |
+| Salto | `L` (o `Shift` dcho., o `2` del teclado numérico) | `G` | A / ✕ |
 | Pausa | `P` o `Esc` | `P` o `Esc` | Start |
 
 - Trepando: golpe = puñetazo a la pared; **golpe + abajo = golpe en diagonal hacia abajo**; golpe + arriba = diagonal hacia arriba.
@@ -82,7 +82,7 @@ que es el reparto habitual en los juegos de PC para 2 jugadores.
 
 **Mandos (Gamepad API):** conecta uno o dos mandos (Xbox, PlayStation, genéricos…) y pulsa un botón.
 - Con 2 mandos: mando 1 → Jugador 1 y mando 2 → Jugador 2.
-- Con 2 jugadores y 1 mando: el mando es para el Jugador 2 y el Jugador 1 usa WASD.
+- Con 2 jugadores y 1 mando: el mando es para el Jugador 2 y el Jugador 1 usa las flechas.
 - En el menú, `TAB` intercambia la asignación.
 - El teclado sigue funcionando aunque haya mandos conectados.
 
@@ -91,7 +91,7 @@ que es el reparto habitual en los juegos de PC para 2 jugadores.
 > Revisa también que no esté silenciado con `M`.
 
 > 💡 Algunos teclados baratos no detectan muchas teclas a la vez (*ghosting*). Si a dos jugadores
-> se les "atascan" teclas, prueba con las alternativas del jugador 2 o con un mando.
+> se les "atascan" teclas, prueba con las alternativas del jugador 1 o con un mando.
 
 ## 🏙️ Reglas (como en el original)
 - Como en el Rampage de 1986, los monstruos **trepan por los laterales** de los edificios y los destrozan a puñetazos.

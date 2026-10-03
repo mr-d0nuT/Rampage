@@ -4,18 +4,18 @@
 // en teclados españoles (QWERTY ES), ingleses, etc.
 const Input = (() => {
   const KEYMAPS = [
-    { // Jugador 1: mano izquierda
-      left: ['KeyA'], right: ['KeyD'], up: ['KeyW'], down: ['KeyS'],
-      punch: ['KeyF'], jump: ['KeyG'],
-    },
-    { // Jugador 2: flechas + K/L (o teclado numérico 1/2, o Ctrl/Shift derechos)
+    { // Jugador 1: flechas + K/L (o teclado numérico 1/2, o Ctrl/Shift derechos)
       left: ['ArrowLeft'], right: ['ArrowRight'], up: ['ArrowUp'], down: ['ArrowDown'],
       punch: ['KeyK', 'Numpad1', 'ControlRight'], jump: ['KeyL', 'Numpad2', 'ShiftRight'],
     },
+    { // Jugador 2: mano izquierda, W A S D + F/G
+      left: ['KeyA'], right: ['KeyD'], up: ['KeyW'], down: ['KeyS'],
+      punch: ['KeyF'], jump: ['KeyG'],
+    },
   ];
   const LABELS = [
-    { move: 'W A S D', punch: 'F', jump: 'G' },
     { move: '← ↑ → ↓', punch: 'K', jump: 'L' },
+    { move: 'W A S D', punch: 'F', jump: 'G' },
   ];
   const ACTIONS = ['left', 'right', 'up', 'down', 'punch', 'jump', 'start'];
   const GAME_KEYS = new Set(['Space', 'Enter', 'Tab', 'ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown']);
@@ -57,7 +57,7 @@ const Input = (() => {
     const pads = navigator.getGamepads ? Array.from(navigator.getGamepads()).filter(p => p && p.connected) : [];
     padCount = pads.length;
     anyPadPressed = false;
-    // Con 2 jugadores y un solo mando, el mando va al jugador 2 (el 1 tiene WASD).
+    // Con 2 jugadores y un solo mando, el mando va al jugador 2 (el 1 tiene las flechas).
     let assign = pads.length >= 2 ? [pads[0], pads[1]]
       : numPlayers === 2 ? [null, pads[0] || null] : [pads[0] || null, null];
     if (swapPads) assign = [assign[1], assign[0]];

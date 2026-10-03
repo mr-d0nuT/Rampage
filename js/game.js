@@ -1386,17 +1386,17 @@ function drawTitle() {
   } else if (PORTRAIT) {
     const y = T.boxY;
     text('CONTROLES · Golpe + ↓ trepando = ¡diagonal!', W / 2, y + 20, 14, '#fff', 'center', 3);
-    text('J1: A D mover · W S trepar · F golpe · G salto', W / 2, y + 44, 14, PLAYER_COLORS[0], 'center', 3);
-    text('J2: ← → mover · ↑ ↓ trepar · K golpe · L salto', W / 2, y + 66, 14, PLAYER_COLORS[1], 'center', 3);
+    text('J1: ← → mover · ↑ ↓ trepar · K golpe · L salto', W / 2, y + 44, 14, PLAYER_COLORS[0], 'center', 3);
+    text('J2: A D mover · W S trepar · F golpe · G salto', W / 2, y + 66, 14, PLAYER_COLORS[1], 'center', 3);
     text('P = pausa · M = sonido · mandos compatibles', W / 2, y + 90, 12, '#9fd', 'center', 3);
   } else {
     text('CONTROLES · Golpe + ↓ trepando = ¡golpe en diagonal!', W / 2, 404, 15, '#fff', 'center', 3);
     text('JUGADOR 1', W / 2 - 150, 426, 15, PLAYER_COLORS[0], 'center', 3);
-    text('Mover: A D · Trepar (en un lateral): W S', W / 2 - 150, 446, 14, '#fff', 'center', 3);
-    text('Golpe: F   ·   Salto: G', W / 2 - 150, 466, 14, '#fff', 'center', 3);
+    text('Mover: ← → · Trepar (en un lateral): ↑ ↓', W / 2 - 150, 446, 14, '#fff', 'center', 3);
+    text('Golpe: K   ·   Salto: L', W / 2 - 150, 466, 14, '#fff', 'center', 3);
     text('JUGADOR 2', W / 2 + 150, 426, 15, PLAYER_COLORS[1], 'center', 3);
-    text('Mover: ← → · Trepar (en un lateral): ↑ ↓', W / 2 + 150, 446, 14, '#fff', 'center', 3);
-    text('Golpe: K   ·   Salto: L', W / 2 + 150, 466, 14, '#fff', 'center', 3);
+    text('Mover: A D · Trepar (en un lateral): W S', W / 2 + 150, 446, 14, '#fff', 'center', 3);
+    text('Golpe: F   ·   Salto: G', W / 2 + 150, 466, 14, '#fff', 'center', 3);
     const padTxt = Input.padCount === 0 ? 'Mandos: conecta uno y pulsa un botón'
       : Input.padCount === 1 ? `1 mando detectado → ${(G.titleSel === 1) !== Input.swapPads ? 'JUGADOR 2' : 'JUGADOR 1'} · TAB para cambiar`
       : `2 mandos detectados → mando 1 = ${Input.swapPads ? 'J2' : 'J1'} · TAB para cambiar`;
